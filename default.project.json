@@ -41,7 +41,6 @@
         "MotionService": { "$path": "game/MotionService.luau" },
         "MusicManager": { "$path": "game/MusicManager.luau" },
         "NetworkService": { "$path": "game/NetworkService.luau" },
-        "TransitionManager": { "$path": "game/TransitionManager.luau" },
         "PreviewDirector": { "$path": "game/PreviewDirector.luau" },
         "RewardService": { "$path": "game/RewardService.luau" },
         "Settings": { "$path": "game/Settings.luau" },

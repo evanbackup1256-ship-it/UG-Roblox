@@ -21,7 +21,6 @@ local PreviewDirector = require(Package.PreviewDirector)
 local Shop = require(Package.ShopService)
 local InterfaceShared = require(Package.InterfaceShared)
 local MusicManager = require(Package.MusicManager)
-local TransitionManager = require(Package.TransitionManager)
 
 local C = Kit.colors
 local player = Players.LocalPlayer
@@ -334,14 +333,14 @@ end
 -- Cues in this set represent one physical gesture in quick succession
 -- (mouse enters, then presses, then releases/activates, all within maybe
 -- 100-200ms of each other for a fast click). Each used to cool down purely
--- on its own name, so a quick click played hover+press+release/click as
--- three independent overlapping sounds — audible as stacking/noise rather
--- than one clean interaction cue. HUSH_ON silences a currently-suppressible
--- cue the instant a cue in its set fires; "hover" is the one that's purely
--- ambient (there's nothing lost by cutting it off once a real press/click
--- follows), so it's the only one ever silenced here.
-local GESTURE_HUSH = { press = true, release = true, click = true, confirm = true, denied = true }
-local lastHoverSound = nil
+-- on its own name, so a quick click played hover+press+release+click as up
+-- to four independent, audibly overlapping sounds. Every cue in this set
+-- now hushes whichever gesture-hush cue played immediately before it (not
+-- just hover), so a fast click plays one clean cue at a time — press cut
+-- off by release, release cut off by the final click/confirm — instead of
+-- stacking.
+local GESTURE_HUSH = { hover = true, press = true, release = true, click = true, confirm = true, denied = true }
+local lastGestureSound = nil
 
 Kit.sound = function(name)
 	if not alive or not preferences.sfx then
@@ -357,9 +356,9 @@ Kit.sound = function(name)
 		return
 	end
 
-	if name ~= "hover" and GESTURE_HUSH[name] and lastHoverSound and lastHoverSound.Playing then
-		lastHoverSound:Stop()
-		lastHoverSound = nil
+	if GESTURE_HUSH[name] and lastGestureSound and lastGestureSound.Playing then
+		lastGestureSound:Stop()
+		lastGestureSound = nil
 	end
 
 	local now = os.clock()
@@ -378,8 +377,8 @@ Kit.sound = function(name)
 	sound.Volume = definition[2] * preferences.masterVolume * preferences.sfxVolume
 	sound:Play()
 
-	if name == "hover" then
-		lastHoverSound = sound
+	if GESTURE_HUSH[name] then
+		lastGestureSound = sound
 	end
 
 	if duckMusic and name ~= "hover" and name ~= "press" and name ~= "release" and name ~= "slider" and name ~= "input" then
@@ -502,8 +501,6 @@ local root = Kit.create("Frame", gui, {
 	BackgroundColor3 = C.background,
 	BorderSizePixel = 0,
 })
-
-local transitionManager = own(TransitionManager.new(Kit, root, preferences))
 
 local loading = Kit.create("CanvasGroup", root, {
 	Name = "LoadingScreen",
@@ -1353,96 +1350,94 @@ do
 		selected = key
 		Shared.selected = key
 
-		transitionManager:Play(function()
-			for name, page in pages do
-				page.Visible = name == key
+		for name, page in pages do
+			page.Visible = name == key
+		end
+
+		for name, item in nav do
+			local active = name == key
+			item.button.BackgroundColor3 = C.raised
+			item.button.BackgroundTransparency = if active then 0 else 1
+			item.indicator.Visible = active
+
+			if active then
+				item.indicator.Size = UDim2.fromOffset(1, 18)
+				Kit.animate(item.indicator, { Size = UDim2.fromOffset(3, 18) }, 0.24, Enum.EasingStyle.Back)
+			else
+				item.indicator.Size = UDim2.fromOffset(3, 18)
 			end
 
-			for name, item in nav do
-				local active = name == key
-				item.button.BackgroundColor3 = C.raised
-				item.button.BackgroundTransparency = if active then 0 else 1
-				item.indicator.Visible = active
+			if item.scale then
+				Kit.animate(item.scale, { Scale = if active then 1.018 else 1 }, 0.24, Enum.EasingStyle.Back)
+			end
 
-				if active then
-					item.indicator.Size = UDim2.fromOffset(1, 18)
-					Kit.animate(item.indicator, { Size = UDim2.fromOffset(3, 18) }, 0.24, Enum.EasingStyle.Back)
+			item.caption.TextColor3 = if active then C.text else C.muted
+			Kit.tintIcon(item.icon, if active then C.accent else C.muted)
+		end
+
+		crumb.Text = "WORKSPACE  /  " .. string.upper(nav[key].caption.Text)
+		crumb.TextTransparency = if motion then 0.55 else 0
+		Kit.animate(crumb, { TextTransparency = 0 }, 0.32)
+
+		refreshPresentation()
+
+		if state then
+			for _, callback in ipairs(updates[key]) do
+				callback(state)
+			end
+		end
+
+		local page = pages[key]
+		page.CanvasPosition = Vector2.zero
+		page.Position = UDim2.fromOffset(if motion then 12 else 0, if motion then 18 else 0)
+		Kit.animate(page, { Position = UDim2.fromOffset(0, 0) }, 0.42, Enum.EasingStyle.Quint)
+
+		if previous ~= key then
+			Kit.sound("page")
+			trace("navigation: %s -> %s", previous, key)
+		end
+
+		local viewport = body.AbsoluteSize.Y
+		local order = 0
+
+		for _, object in pageTargets[key] do
+			if object.Visible then
+				local top = object.Position.Y.Offset
+				local onScreen = top + object.Size.Y.Offset > 0 and top < viewport
+				local scale = revealScales[object]
+
+				if motion and onScreen then
+					if not scale then
+						scale = Kit.create("UIScale", object, { Name = "RevealScale", Scale = 1 })
+						revealScales[object] = scale
+					end
+
+					local step = math.min(order, 5)
+					order += 1
+
+					object.BackgroundTransparency = 0.5
+					scale.Scale = 0.985
+
+					-- Routed through the scheduler (not Kit.animate, since
+					-- the stagger needs TweenInfo's delay parameter) so a
+					-- second quick page switch cancels any cascade tween
+					-- still running on a reused object instead of letting
+					-- it race the new one.
+					local fadeTween = TweenService:Create(object, REVEAL_FADE[step], { BackgroundTransparency = 0 })
+					Kit.Scheduler.track(object, "reveal", fadeTween)
+					fadeTween:Play()
+
+					local popTween = TweenService:Create(scale, REVEAL_POP[step], { Scale = 1 })
+					Kit.Scheduler.track(scale, "reveal", popTween)
+					popTween:Play()
 				else
-					item.indicator.Size = UDim2.fromOffset(3, 18)
-				end
-
-				if item.scale then
-					Kit.animate(item.scale, { Scale = if active then 1.018 else 1 }, 0.24, Enum.EasingStyle.Back)
-				end
-
-				item.caption.TextColor3 = if active then C.text else C.muted
-				Kit.tintIcon(item.icon, if active then C.accent else C.muted)
-			end
-
-			crumb.Text = "WORKSPACE  /  " .. string.upper(nav[key].caption.Text)
-			crumb.TextTransparency = if motion then 0.55 else 0
-			Kit.animate(crumb, { TextTransparency = 0 }, 0.32)
-
-			refreshPresentation()
-
-			if state then
-				for _, callback in ipairs(updates[key]) do
-					callback(state)
-				end
-			end
-
-			local page = pages[key]
-			page.CanvasPosition = Vector2.zero
-			page.Position = UDim2.fromOffset(if motion then 12 else 0, if motion then 18 else 0)
-			Kit.animate(page, { Position = UDim2.fromOffset(0, 0) }, 0.42, Enum.EasingStyle.Quint)
-
-			if previous ~= key then
-				Kit.sound("page")
-				trace("navigation: %s -> %s", previous, key)
-			end
-
-			local viewport = body.AbsoluteSize.Y
-			local order = 0
-
-			for _, object in pageTargets[key] do
-				if object.Visible then
-					local top = object.Position.Y.Offset
-					local onScreen = top + object.Size.Y.Offset > 0 and top < viewport
-					local scale = revealScales[object]
-
-					if motion and onScreen then
-						if not scale then
-							scale = Kit.create("UIScale", object, { Name = "RevealScale", Scale = 1 })
-							revealScales[object] = scale
-						end
-
-						local step = math.min(order, 5)
-						order += 1
-
-						object.BackgroundTransparency = 0.5
-						scale.Scale = 0.985
-
-						-- Routed through the scheduler (not Kit.animate, since
-						-- the stagger needs TweenInfo's delay parameter) so a
-						-- second quick page switch cancels any cascade tween
-						-- still running on a reused object instead of letting
-						-- it race the new one.
-						local fadeTween = TweenService:Create(object, REVEAL_FADE[step], { BackgroundTransparency = 0 })
-						Kit.Scheduler.track(object, "reveal", fadeTween)
-						fadeTween:Play()
-
-						local popTween = TweenService:Create(scale, REVEAL_POP[step], { Scale = 1 })
-						Kit.Scheduler.track(scale, "reveal", popTween)
-						popTween:Play()
-					else
-						object.BackgroundTransparency = 0
-						if scale then
-							scale.Scale = 1
-						end
+					object.BackgroundTransparency = 0
+					if scale then
+						scale.Scale = 1
 					end
 				end
 			end
-		end)
+		end
 	end
 
 	Shared.fn.switchPage = switchPage

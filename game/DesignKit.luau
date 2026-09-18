@@ -333,17 +333,7 @@ function Kit.card(parent, name, height, color)
 		BorderSizePixel = 0,
 	})
 	Kit.corner(card, 8)
-	local edge = Kit.stroke(card, Kit.colors.line, 0.58)
-	local lift = Kit.create("UIScale", card, {Name = "CardLift", Scale = 1})
-	card.Active = true
-	card.MouseEnter:Connect(function()
-		Kit.animate(lift, {Scale = 1.006}, 0.2, Enum.EasingStyle.Back)
-		Kit.animate(edge, {Transparency = 0.36}, 0.2)
-	end)
-	card.MouseLeave:Connect(function()
-		Kit.animate(lift, {Scale = 1}, 0.24, Enum.EasingStyle.Back)
-		Kit.animate(edge, {Transparency = 0.58}, 0.24)
-	end)
+	Kit.stroke(card, Kit.colors.line, 0.58)
 	return card
 end
 
@@ -1022,7 +1012,6 @@ function Kit.button(parent, name, copy, callback, primary)
 			return
 		end
 		Kit.sound(if primary then "confirm" else "click")
-		Kit.smush(button)
 		local pulse = Kit.create("Frame", button, {
 			Name = "Pulse",
 			AnchorPoint = Vector2.new(0.5, 0.5),

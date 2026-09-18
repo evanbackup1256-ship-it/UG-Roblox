@@ -46,7 +46,6 @@
       "DeckServer": {
         "$className": "Folder",
         "$ignoreUnknownInstances": true,
-        "Framework": { "$path": "game/Framework.luau" },
         "LeaderboardService": { "$path": "game/LeaderboardService.luau" },
         "PersistenceService": { "$path": "game/PersistenceService.luau" },
         "ServerController": { "$path": "game/ServerController.luau" },

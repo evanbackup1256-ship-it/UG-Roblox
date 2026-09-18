@@ -7,10 +7,6 @@ private = true
 
 [dependencies]
 Trove = "sleitnick/trove@1.8.0"
-Loader = "quenty/loader@^1.0.0"
-Maid = "quenty/maid@^1.0.0"
-Signal = "quenty/signal@^1.0.0"
-Binder = "quenty/binder@^1.0.0"
 
 [server-dependencies]
 ProfileStore = "lm-loleris/profilestore@1.0.3"

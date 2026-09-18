@@ -49,7 +49,8 @@
         "Framework": { "$path": "game/Framework.luau" },
         "LeaderboardService": { "$path": "game/LeaderboardService.luau" },
         "PersistenceService": { "$path": "game/PersistenceService.luau" },
-        "ServerController": { "$path": "game/ServerController.luau" }
+        "ServerController": { "$path": "game/ServerController.luau" },
+        "Throttle": { "$path": "game/Throttle.luau" }
       },
       "DeckPackages": {
         "$className": "Folder",

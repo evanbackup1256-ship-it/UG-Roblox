@@ -29,7 +29,6 @@ function Framework.new(name)
 		initialized = {},
 		started = {},
 		trove = Trove.new(),
-		buckets = {},
 	}, Framework)
 end
 
@@ -69,40 +68,6 @@ function Framework:Spawn(callback, ...)
 	local thread = task.spawn(callback, ...)
 	self.trove:Add(thread)
 	return thread
-end
-
-function Framework:Throttle(bucket, subject, capacity, refillPerSecond, cost)
-	assert(capacity > 0 and refillPerSecond > 0, "Throttle capacity and refill must be positive")
-
-	local group = self.buckets[bucket]
-	if not group then
-		group = {}
-		self.buckets[bucket] = group
-	end
-
-	local now = os.clock()
-	local entry = group[subject]
-	if not entry then
-		entry = {tokens = capacity, at = now}
-		group[subject] = entry
-	end
-
-	entry.tokens = math.min(capacity, entry.tokens + (now - entry.at) * refillPerSecond)
-	entry.at = now
-
-	local required = cost or 1
-	if entry.tokens < required then
-		return false
-	end
-
-	entry.tokens -= required
-	return true
-end
-
-function Framework:Forget(subject)
-	for _, group in self.buckets do
-		group[subject] = nil
-	end
 end
 
 function Framework:_resolve(name, visiting)
@@ -183,7 +148,6 @@ function Framework:Destroy()
 	table.clear(self.order)
 	table.clear(self.initialized)
 	table.clear(self.started)
-	table.clear(self.buckets)
 	self.state = "destroyed"
 end
 
@@ -193,11 +157,12 @@ local Players = game:GetService("Players")
 local SessionService = {}
 SessionService.__index = SessionService
 
-function SessionService.new(persistence, stateService, config)
+function SessionService.new(persistence, stateService, config, throttle)
 	return setmetatable({
 		persistence = persistence,
 		stateService = stateService,
 		config = config,
+		throttle = throttle,
 		sessions = {},
 		loading = {},
 		publisher = nil,
@@ -303,8 +268,8 @@ end
 function SessionService:Drop(player)
 	self.sessions[player] = nil
 	self.loading[player] = nil
-	if self.app then
-		self.app:Forget(player)
+	if self.throttle then
+		self.throttle:Forget(player)
 	end
 end
 

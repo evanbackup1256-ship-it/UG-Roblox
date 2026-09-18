@@ -8,6 +8,7 @@ local server = ServerScriptService:WaitForChild("DeckServer")
 local Framework = require(server:WaitForChild("Framework"))
 local PersistenceService = require(server:WaitForChild("PersistenceService"))
 local LeaderboardService = require(server:WaitForChild("LeaderboardService"))
+local Throttle = require(server:WaitForChild("Throttle"))
 local SessionService = Framework.SessionService
 local ActionService = Framework.ActionService
 local ProductionService = Framework.ProductionService
@@ -21,6 +22,7 @@ local ShopService = require(package:WaitForChild("ShopService"))
 local NetworkService = require(package:WaitForChild("NetworkService"))
 
 local app = Framework.new("DeckServer")
+local throttle = Throttle.new()
 local remotes = NetworkService.bind(package)
 local sessions
 local studioDiagnostics = RunService:IsStudio()
@@ -60,7 +62,7 @@ local persistence = PersistenceService.new(hydrate, function(player)
 	end
 end)
 
-sessions = SessionService.new(persistence, StateService, Config)
+sessions = SessionService.new(persistence, StateService, Config, throttle)
 
 local actions = ActionService.new(
 	Config,
@@ -71,7 +73,7 @@ local actions = ActionService.new(
 )
 
 local production = ProductionService.new(Config, StateService, sessions)
-local leaderboard = LeaderboardService.new(sessions)
+local leaderboard = LeaderboardService.new(sessions, throttle)
 
 app:Register("Sessions", sessions)
 app:Register("Actions", actions, {"Sessions"})
@@ -91,7 +93,7 @@ local function response(state, ok, message)
 end
 
 remotes.getState.OnServerInvoke = function(player)
-	if not app:Throttle("state", player, 8, 6) then
+	if not throttle:Consume("state", player, 8, 6) then
 		return nil
 	end
 
@@ -100,7 +102,7 @@ remotes.getState.OnServerInvoke = function(player)
 end
 
 remotes.ping.OnServerInvoke = function(player)
-	if not app:Throttle("ping", player, 10, 8) then
+	if not throttle:Consume("ping", player, 10, 8) then
 		return nil
 	end
 
@@ -108,7 +110,7 @@ remotes.ping.OnServerInvoke = function(player)
 end
 
 remotes.leaderboard.OnServerInvoke = function(player, category)
-	if not app:Throttle("leaderboard", player, 3, 0.2) then
+	if not throttle:Consume("leaderboard", player, 3, 0.2) then
 		return nil
 	end
 
@@ -124,7 +126,7 @@ remotes.leaderboard.OnServerInvoke = function(player, category)
 end
 
 remotes.preferences.OnServerEvent:Connect(function(player, changes)
-	if type(changes) ~= "table" or not app:Throttle("preferences", player, 5, 5) then
+	if type(changes) ~= "table" or not throttle:Consume("preferences", player, 5, 5) then
 		return
 	end
 
@@ -156,7 +158,7 @@ remotes.action.OnServerInvoke = function(player, kind, key, amount)
 		return response(nil, false, "Your cloud is still connecting.")
 	end
 
-	if not app:Throttle("action", player, 10, 6) then
+	if not throttle:Consume("action", player, 10, 6) then
 		trace("action throttled: user=%d kind=%s", player.UserId, tostring(kind))
 		return response(state, false, "One moment…")
 	end

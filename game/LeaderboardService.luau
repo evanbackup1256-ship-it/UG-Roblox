@@ -16,9 +16,10 @@ local CATEGORIES = {
 	{ key = "prestige", store = "DeckEmpire_LeaderboardPrestige_v1", field = "prestigeCount", cap = 1e6 },
 }
 
-function LeaderboardService.new(sessions)
+function LeaderboardService.new(sessions, throttle)
 	local self = setmetatable({
 		sessions = sessions,
+		throttle = throttle,
 		isStudio = RunService:IsStudio(),
 		categories = {},
 		app = nil,
@@ -81,13 +82,12 @@ function LeaderboardService:Start()
 end
 
 -- Best-effort, never blocks gameplay: called from the action-success path
--- in ServerController.luau. The service's own per-player throttle (via
--- Framework:Throttle, one token per WRITE_COOLDOWN seconds, shared across
--- all categories for a given player) makes it safe to call this on every
--- successful action rather than hand-picking "milestone" verbs — most
--- calls simply no-op.
+-- in ServerController.luau. The service's own per-player throttle (one
+-- token per WRITE_COOLDOWN seconds, shared across all categories for a
+-- given player) makes it safe to call this on every successful action
+-- rather than hand-picking "milestone" verbs — most calls simply no-op.
 function LeaderboardService:Submit(player, state)
-	if not self.app:Throttle("leaderboardWrite", player, 1, 1 / WRITE_COOLDOWN) then
+	if not self.throttle:Consume("leaderboardWrite", player, 1, 1 / WRITE_COOLDOWN) then
 		return
 	end
 

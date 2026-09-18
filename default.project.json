@@ -59,6 +59,17 @@
         "$className": "Folder",
         "Trove": { "$path": "Packages/Trove.lua" },
         "ProfileStore": { "$path": "ServerPackages/ProfileStore.lua" }
+      },
+      "node_modules": {
+        "$className": "Folder",
+        "@quenty": {
+          "$className": "Folder",
+          "loader": { "$path": "node_modules/@quenty/loader/src" },
+          "baseobject": { "$path": "node_modules/@quenty/baseobject/src" },
+          "maid": { "$path": "node_modules/@quenty/maid/src" },
+          "signal": { "$path": "node_modules/@quenty/signal/src" },
+          "servicebag": { "$path": "node_modules/@quenty/servicebag/src" }
+        }
       }
     },
     "StarterPlayer": {

@@ -9,9 +9,9 @@ local Framework = require(server:WaitForChild("Framework"))
 local PersistenceService = require(server:WaitForChild("PersistenceService"))
 local LeaderboardService = require(server:WaitForChild("LeaderboardService"))
 local Throttle = require(server:WaitForChild("Throttle"))
-local SessionService = Framework.SessionService
-local ActionService = Framework.ActionService
-local ProductionService = Framework.ProductionService
+local SessionService = require(server:WaitForChild("SessionService"))
+local ActionService = require(server:WaitForChild("ActionService"))
+local ProductionService = require(server:WaitForChild("ProductionService"))
 
 local Config = require(package:WaitForChild("Config"))
 local Validation = require(package:WaitForChild("Validation"))

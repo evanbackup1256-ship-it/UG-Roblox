@@ -50,7 +50,10 @@
         "LeaderboardService": { "$path": "game/LeaderboardService.luau" },
         "PersistenceService": { "$path": "game/PersistenceService.luau" },
         "ServerController": { "$path": "game/ServerController.luau" },
-        "Throttle": { "$path": "game/Throttle.luau" }
+        "Throttle": { "$path": "game/Throttle.luau" },
+        "SessionService": { "$path": "game/SessionService.luau" },
+        "ActionService": { "$path": "game/ActionService.luau" },
+        "ProductionService": { "$path": "game/ProductionService.luau" }
       },
       "DeckPackages": {
         "$className": "Folder",

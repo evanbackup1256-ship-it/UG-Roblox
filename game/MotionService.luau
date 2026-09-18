@@ -77,6 +77,12 @@ end
 -- Public helpers
 ----------------------------------------------------------------------
 
+-- Exposed directly (not just via vectorSpring) for callers that need two
+-- independent scalar springs tracking different targets at once — e.g.
+-- Kit.smush's squash/stretch X/Y pair, where X and Y are driven toward
+-- opposite offsets rather than the same Vector2 target.
+MotionService.Spring = Spring
+
 function MotionService.vectorSpring(frequency, damping)
 	local x = Spring.new(0, frequency, damping)
 	local y = Spring.new(0, frequency, damping)

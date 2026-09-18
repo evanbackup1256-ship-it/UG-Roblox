@@ -1,5 +1,7 @@
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local Icons = require(script.Parent.Icons)
+local Motion = require(script.Parent.MotionService)
 
 local Kit = {}
 
@@ -693,6 +695,106 @@ function Kit.progressFull(track)
 	end)
 end
 
+-- Continuous UIGradient animation for high-tier titles/headers: a moving
+-- highlight sweep ("sheen"), a hue-cycling rotation ("rainbow"), or a
+-- breathing glow-stroke pulse ("pulse"). One Scheduler key ("gradient") per
+-- object regardless of mode, so calling this again with a different mode on
+-- the same object cleanly cancels whatever was running before instead of
+-- the two fighting each other.
+function Kit.gradientAnimate(object, mode, options)
+	options = options or {}
+	local color = options.color or Kit.colors.accent
+
+	Kit.Scheduler.clear(object, "gradient")
+
+	if mode == "sheen" then
+		local gradient = object:FindFirstChildOfClass("UIGradient")
+		if not gradient then
+			gradient = Kit.create("UIGradient", object, {
+				Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 1),
+					NumberSequenceKeypoint.new(0.45, 0.65),
+					NumberSequenceKeypoint.new(0.55, 0.65),
+					NumberSequenceKeypoint.new(1, 1),
+				}),
+			})
+		end
+		gradient.Color = ColorSequence.new(color)
+
+		if not Kit.motion then
+			gradient.Offset = Vector2.new(0, 0)
+			return gradient
+		end
+
+		gradient.Offset = Vector2.new(-1, 0)
+		local tween = TweenService:Create(
+			gradient,
+			TweenInfo.new(1.6, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1, false),
+			{ Offset = Vector2.new(1, 0) }
+		)
+		Kit.Scheduler.track(object, "gradient", tween)
+		tween:Play()
+		return gradient
+	elseif mode == "rainbow" then
+		local gradient = object:FindFirstChildOfClass("UIGradient")
+		if not gradient then
+			gradient = Kit.create("UIGradient", object, {})
+		end
+		gradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 0.85, 1)),
+			ColorSequenceKeypoint.new(1 / 6, Color3.fromHSV(1 / 6, 0.85, 1)),
+			ColorSequenceKeypoint.new(2 / 6, Color3.fromHSV(2 / 6, 0.85, 1)),
+			ColorSequenceKeypoint.new(3 / 6, Color3.fromHSV(3 / 6, 0.85, 1)),
+			ColorSequenceKeypoint.new(4 / 6, Color3.fromHSV(4 / 6, 0.85, 1)),
+			ColorSequenceKeypoint.new(5 / 6, Color3.fromHSV(5 / 6, 0.85, 1)),
+			ColorSequenceKeypoint.new(1, Color3.fromHSV(0, 0.85, 1)),
+		})
+
+		if not Kit.motion then
+			gradient.Rotation = 0
+			return gradient
+		end
+
+		local tween = TweenService:Create(
+			gradient,
+			TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1, false),
+			{ Rotation = 360 }
+		)
+		Kit.Scheduler.track(object, "gradient", tween)
+		tween:Play()
+		return gradient
+	elseif mode == "pulse" then
+		local stroke = object:FindFirstChild("PulseGlow")
+		if not stroke then
+			stroke = Kit.create("UIStroke", object, {
+				Name = "PulseGlow",
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+				Thickness = 2,
+				Color = color,
+			})
+		end
+		stroke.Color = color
+
+		if not Kit.motion then
+			stroke.Transparency = 1
+			return stroke
+		end
+
+		stroke.Transparency = 0.2
+		local tween = TweenService:Create(
+			stroke,
+			TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ Transparency = 0.85 }
+		)
+		Kit.Scheduler.track(object, "gradient", tween)
+		tween:Play()
+		return stroke
+	end
+
+	warn("Kit.gradientAnimate: unknown mode " .. tostring(mode))
+	return nil
+end
+
 -- A visible ring distinguishing true gamepad SELECTION from mouse HOVER.
 -- Kit.button's SelectionGained handler reuses the same edge-glow as
 -- MouseEnter, which reads ambiguous once a gamepad is in play — "is the
@@ -722,8 +824,86 @@ function Kit.focusRing(object)
 end
 
 --======================================================================--
--- Controls
+-- Squash & stretch: spring-driven UIScale punch, for a genuine elastic
+-- overshoot-and-settle feel distinct from Kit.animate's tween-based
+-- bounces. Additive: applied through its own dedicated "SmushScale"
+-- UIScale sibling rather than reusing a button/card's existing UIScale, so
+-- it composes with whatever tween-driven hover/press scale is already
+-- running instead of fighting it for the same instance. (UIScale only
+-- exposes a single uniform Scale float — there is no native non-uniform
+-- X/Y scale primitive for GuiObjects in Roblox — so the "stretch" read
+-- comes from the spring's real overshoot past 1 and back, not from
+-- separate per-axis scaling.) One shared RenderStepped connection drives
+-- every active spring (lazily connected on first use, disconnected once
+-- nothing is animating), rather than one connection per instance — the
+-- same centralize-instead-of-per-object-loop approach Kit.Scheduler
+-- already takes for cleanup, and PreviewDirector already takes for its
+-- own per-frame entries.
 --======================================================================--
+
+local activeSmush = setmetatable({}, { __mode = "k" }) -- instance -> {spring, uiScale}
+local smushConnection = nil
+local SMUSH_EPSILON = 0.002
+
+local function stepSmush(delta)
+	for object, entry in activeSmush do
+		local value = entry.spring:Step(1, delta)
+		entry.uiScale.Scale = value
+
+		local settled = math.abs(value - 1) < SMUSH_EPSILON and math.abs(entry.spring.velocity) < SMUSH_EPSILON
+		if settled then
+			entry.spring.value = 1
+			entry.uiScale.Scale = 1
+			activeSmush[object] = nil
+		end
+	end
+
+	if smushConnection and next(activeSmush) == nil then
+		smushConnection:Disconnect()
+		smushConnection = nil
+	end
+end
+
+-- Triggers a squash-and-stretch punch on `object` (any GuiObject): scale is
+-- displaced off its 1.0 rest target and left to spring back naturally, so
+-- the overshoot-and-settle recovery comes for free from the spring
+-- integrator rather than being a separate hand-authored animation. `punch`
+-- (default 0.12) is the initial displacement fraction.
+function Kit.smush(object, punch)
+	local entry = activeSmush[object]
+
+	if not Kit.motion then
+		if entry then
+			entry.uiScale.Scale = 1
+			activeSmush[object] = nil
+		end
+		return
+	end
+
+	punch = punch or 0.12
+
+	if not entry then
+		local uiScale = object:FindFirstChild("SmushScale")
+		if not uiScale then
+			uiScale = Kit.create("UIScale", object, { Name = "SmushScale", Scale = 1 })
+		end
+		entry = {
+			spring = Motion.Spring.new(1, 6, 0.4),
+			uiScale = uiScale,
+		}
+		activeSmush[object] = entry
+		watch(object)
+		object.Destroying:Connect(function()
+			activeSmush[object] = nil
+		end)
+	end
+
+	entry.spring.value = 1 - punch
+
+	if not smushConnection then
+		smushConnection = RunService.RenderStepped:Connect(stepSmush)
+	end
+end
 
 function Kit.button(parent, name, copy, callback, primary)
 	local button = Kit.create("TextButton", parent, {
@@ -779,6 +959,7 @@ function Kit.button(parent, name, copy, callback, primary)
 			return
 		end
 		Kit.sound(if primary then "confirm" else "click")
+		Kit.smush(button)
 		local pulse = Kit.create("Frame", button, {
 			Name = "Pulse",
 			AnchorPoint = Vector2.new(0.5, 0.5),

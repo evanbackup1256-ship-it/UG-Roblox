@@ -1,0 +1,17 @@
+{
+  "name": "deck-cloud-empire",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "tsx tools/validate-content.ts"
+  },
+  "devDependencies": {
+    "tsx": "latest",
+    "typescript": "latest"
+  },
+  "dependencies": {
+    "@quenty/loader": "^10.11.1",
+    "@quenty/maid": "^3.12.0",
+    "@quenty/signal": "^7.13.2"
+  }
+}

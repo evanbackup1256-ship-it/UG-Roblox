@@ -795,6 +795,69 @@ function Kit.gradientAnimate(object, mode, options)
 	return nil
 end
 
+-- Small pooled burst of Frame-based particle dots (ParticleEmitter doesn't
+-- render inside a ScreenGui, so this is Frames, not a real ParticleEmitter)
+-- fired outward from the center of `card` and fading out, for a one-shot
+-- celebratory accent on a milestone moment. Pool is per-card and reused
+-- across repeated calls rather than instantiated/destroyed each time,
+-- matching the toast system's own slot-pooling discipline.
+local confettiPools = setmetatable({}, { __mode = "k" }) -- card -> {dots}
+local CONFETTI_COUNT = 6
+
+function Kit.confetti(card, color)
+	if not Kit.motion then
+		return
+	end
+
+	color = color or Kit.colors.accent
+	local pool = confettiPools[card]
+	if not pool then
+		pool = {}
+		for index = 1, CONFETTI_COUNT do
+			local dot = Kit.create("Frame", card, {
+				Name = "Confetti" .. index,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.fromOffset(5, 5),
+				BackgroundColor3 = color,
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				ZIndex = card.ZIndex + 2,
+				Visible = false,
+			})
+			Kit.corner(dot, 999)
+			pool[index] = dot
+		end
+		confettiPools[card] = pool
+		watch(card)
+		card.Destroying:Connect(function()
+			confettiPools[card] = nil
+		end)
+	end
+
+	for index, dot in ipairs(pool) do
+		local angle = (index - 1) / #pool * math.pi * 2 + math.random() * 0.6
+		local distance = 26 + math.random() * 14
+		local offset = Vector2.new(math.cos(angle), math.sin(angle)) * distance
+
+		dot.BackgroundColor3 = color
+		dot.BackgroundTransparency = 0
+		dot.Position = UDim2.fromScale(0.5, 0.5)
+		dot.Visible = true
+
+		Kit.animate(dot, {
+			Position = UDim2.new(0.5, offset.X, 0.5, offset.Y),
+			BackgroundTransparency = 1,
+		}, 0.5 + math.random() * 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+		Kit.Scheduler.after(dot, "confettiHide", 0.75, function()
+			if dot.Parent then
+				dot.Visible = false
+			end
+		end)
+	end
+end
+
 -- A visible ring distinguishing true gamepad SELECTION from mouse HOVER.
 -- Kit.button's SelectionGained handler reuses the same edge-glow as
 -- MouseEnter, which reads ambiguous once a gamepad is in play — "is the

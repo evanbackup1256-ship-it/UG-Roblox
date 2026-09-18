@@ -814,6 +814,15 @@ do
 		slot.holder.Position = UDim2.new(1, entry.x - TOAST_MARGIN, 0, entry.y)
 		slot.holder.Visible = true
 
+		if not entry.failed and request.cue == "milestone" then
+			Kit.gradientAnimate(slot.bar, "sheen", { color = C.accent })
+			if preferences.particles then
+				Kit.confetti(slot.card, C.accent)
+			end
+		else
+			Kit.Scheduler.clear(slot.bar, "gradient")
+		end
+
 		table.insert(toastLive, 1, entry)
 		Kit.sound(if request.failed then "error" else request.cue or "notice")
 		return true

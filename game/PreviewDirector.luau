@@ -56,6 +56,34 @@ function Director.new(root, preferences)
 		end
 	end)
 
+	-- Scroll-wheel zoom: only for the entry directly under the pointer, and
+	-- only when nothing else is mid-drag (zooming the entry someone else is
+	-- currently orbiting would read as the camera fighting the player).
+	-- ViewportFrame has no dedicated MouseWheel event of its own — the
+	-- input has to be picked up via UserInputService and hit-tested against
+	-- each entry's own on-screen bounds. Position is read via
+	-- GetMouseLocation() rather than input.Position: the latter is
+	-- documented for MouseMovement/Touch, but its X/Y population on a
+	-- MouseWheel event specifically isn't documented, whereas
+	-- GetMouseLocation() is guaranteed available whenever a mouse exists.
+	connect(Input.InputChanged, function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseWheel or self.drag then
+			return
+		end
+
+		local position = Input:GetMouseLocation()
+		for _, entry in ipairs(self.entries) do
+			if entry.active and self:IsVisible(entry) then
+				local p = entry.viewport.AbsolutePosition
+				local s = entry.viewport.AbsoluteSize
+				if position.X >= p.X and position.X <= p.X + s.X and position.Y >= p.Y and position.Y <= p.Y + s.Y then
+					entry.zoomDistance = math.clamp(entry.zoomDistance - input.Position.Z * 0.08, 0.6, 1.8)
+					break
+				end
+			end
+		end
+	end)
+
 	-- Track the Destroying connection too so everything is cleaned up
 	connect(root.Destroying, function()
 		for _, connection in ipairs(self.connections) do
@@ -87,6 +115,7 @@ function Director:Add(parent, seed, tint, crate)
 		angle = 0.65,
 		active = false,
 		lastSeen = 0,
+		zoomDistance = 1,
 	}
 
 	table.insert(self.entries, entry)
@@ -171,6 +200,30 @@ function Director:Build(entry)
 		end
 	end
 
+	-- Rim/back light: ViewportFrame.LightDirection/LightColor/Ambient (set
+	-- on the viewport itself, above) is a single baked-in key light with no
+	-- second slot for a back light. A genuine second light needs an actual
+	-- light Instance parented under the WorldModel — standard WorldModel
+	-- lighting behavior, illuminates parts rendered through this viewport.
+	-- Torn down automatically as a descendant of `world` in the existing
+	-- unload path below, no separate cleanup needed.
+	local rimAnchor = Kit.create("Part", world, {
+		Name = "RimAnchor",
+		Size = Vector3.new(0.2, 0.2, 0.2),
+		Position = Vector3.new(0, 3, -3),
+		Transparency = 1,
+		Anchored = true,
+		CanCollide = false,
+		CanTouch = false,
+		CanQuery = false,
+		CastShadow = false,
+	})
+	Kit.create("PointLight", rimAnchor, {
+		Color = Color3.fromRGB(150, 190, 255),
+		Brightness = 1.4,
+		Range = 16,
+	})
+
 	entry.camera = Kit.create("Camera", entry.viewport, { FieldOfView = 32 })
 	entry.viewport.CurrentCamera = entry.camera
 	entry.world = world
@@ -241,6 +294,7 @@ function Director:Step(dt)
 				entry.world = nil
 				entry.camera = nil
 				entry.spin = nil
+				entry.zoomDistance = 1
 			end
 
 			entry.viewport.Visible = entry.active
@@ -279,7 +333,7 @@ function Director:Step(dt)
 			end
 
 			local aspect = entry.viewport.AbsoluteSize.X / math.max(1, entry.viewport.AbsoluteSize.Y)
-			local distance = 19 * math.max(1, 1 / aspect)
+			local distance = 19 * math.max(1, 1 / aspect) * entry.zoomDistance
 			local focus = Vector3.new(0, 1.5, 0)
 
 			entry.camera.CFrame = CFrame.lookAt(

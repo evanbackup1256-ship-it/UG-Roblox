@@ -68,8 +68,7 @@
       },
       "DeckPackages": {
         "$className": "Folder",
-        "Trove": { "$path": "Packages/Trove.lua" },
-        "ProfileStore": { "$path": "ServerPackages/ProfileStore.lua" }
+        "$path": "ServerPackages"
       },
       "node_modules": {
         "$className": "Folder",

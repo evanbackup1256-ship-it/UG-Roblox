@@ -2,24 +2,25 @@ local RunService = game:GetService("RunService")
 
 local ProductionService = {}
 ProductionService.__index = ProductionService
+ProductionService.ServiceName = "ProductionService"
 
-function ProductionService.new(config, stateService, sessions)
-	return setmetatable({
-		config = config,
-		stateService = stateService,
-		sessions = sessions,
-		app = nil,
-		accumulator = 0,
-		interval = 0.5,
-	}, ProductionService)
+-- See SessionService.luau's Configure for why dependencies (including Maid)
+-- are injected explicitly rather than resolved via require/GetService here.
+function ProductionService:Configure(config, stateService, sessions, Maid)
+	self.config = config
+	self.stateService = stateService
+	self.sessions = sessions
+	self.Maid = Maid
 end
 
-function ProductionService:Init(app)
-	self.app = app
+function ProductionService:Init(_serviceBag)
+	self.maid = self.Maid.new()
+	self.accumulator = 0
+	self.interval = 0.5
 end
 
 function ProductionService:Start()
-	self.app:Connect(RunService.Heartbeat, function(delta)
+	self.maid:GiveTask(RunService.Heartbeat:Connect(function(delta)
 		self.accumulator += delta
 		if self.accumulator < self.interval then
 			return
@@ -28,7 +29,7 @@ function ProductionService:Start()
 		local elapsed = math.min(self.accumulator, 5)
 		self.accumulator = 0
 		self:Step(elapsed)
-	end)
+	end))
 end
 
 function ProductionService:Step(elapsed)
@@ -53,7 +54,9 @@ function ProductionService:Stop()
 end
 
 function ProductionService:Destroy()
-	self.app = nil
+	if self.maid then
+		self.maid:DoCleaning()
+	end
 end
 
 return ProductionService

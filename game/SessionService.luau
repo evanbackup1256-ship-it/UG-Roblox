@@ -2,34 +2,45 @@ local Players = game:GetService("Players")
 
 local SessionService = {}
 SessionService.__index = SessionService
+SessionService.ServiceName = "SessionService"
 
-function SessionService.new(persistence, stateService, config, throttle)
-	return setmetatable({
-		persistence = persistence,
-		stateService = stateService,
-		config = config,
-		throttle = throttle,
-		sessions = {},
-		loading = {},
-		publisher = nil,
-		app = nil,
-	}, SessionService)
+-- ServiceBag registers this module by identity and constructs instances by
+-- copying a blank table with __index = SessionService (see ServiceBag.lua
+-- _addServiceType) — there is no custom .new(...) constructor call, so
+-- anything this service needs beyond what Init(serviceBag) can resolve via
+-- GetService must be injected explicitly before serviceBag:Init() runs.
+-- ServerController.luau calls this once, right after GetService(SessionService).
+-- Maid is passed in rather than required directly: this module lives
+-- outside the Nevermore package tree, so it has no "loader" sibling link
+-- (that link is only created within the packages root itself — see
+-- Server.server.luau), and the package folder's own location is not fixed
+-- (Studio's bootstrap fast path relocates it) — passing the already
+-- required module sidesteps needing a reliable path to it at all.
+function SessionService:Configure(persistence, stateService, config, throttle, Maid)
+	self.persistence = persistence
+	self.stateService = stateService
+	self.config = config
+	self.throttle = throttle
+	self.Maid = Maid
 end
 
-function SessionService:Init(app)
-	self.app = app
+function SessionService:Init(_serviceBag)
+	self.maid = self.Maid.new()
+	self.sessions = {}
+	self.loading = {}
+	self.publisher = nil
 end
 
 function SessionService:Start()
-	self.app:Connect(Players.PlayerAdded, function(player)
+	self.maid:GiveTask(Players.PlayerAdded:Connect(function(player)
 		task.spawn(function()
 			self:Load(player)
 		end)
-	end)
+	end))
 
-	self.app:Connect(Players.PlayerRemoving, function(player)
+	self.maid:GiveTask(Players.PlayerRemoving:Connect(function(player)
 		self:Release(player)
-	end)
+	end))
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		task.spawn(function()
@@ -137,10 +148,12 @@ end
 
 function SessionService:Destroy()
 	self.persistence:Close()
+	if self.maid then
+		self.maid:DoCleaning()
+	end
 	table.clear(self.sessions)
 	table.clear(self.loading)
 	self.publisher = nil
-	self.app = nil
 end
 
 return SessionService

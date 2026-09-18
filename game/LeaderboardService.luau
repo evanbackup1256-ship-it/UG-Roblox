@@ -22,7 +22,7 @@ function LeaderboardService.new(sessions, throttle)
 		throttle = throttle,
 		isStudio = RunService:IsStudio(),
 		categories = {},
-		app = nil,
+		running = false,
 	}, LeaderboardService)
 
 	-- GetOrderedDataStore itself is documented as an instant local handle,
@@ -66,19 +66,23 @@ function LeaderboardService:_ensureStore(category)
 	return category.store
 end
 
-function LeaderboardService:Init(app)
-	self.app = app
-end
-
-function LeaderboardService:Start()
-	self.app:Spawn(function()
-		while true do
+-- Not a ServiceBag service (no cross-service dependency needs Init/Start
+-- ordering here), so ServerController.luau calls StartLoop()/StopLoop()
+-- directly rather than through any lifecycle kernel.
+function LeaderboardService:StartLoop()
+	self.running = true
+	task.spawn(function()
+		while self.running do
 			for key in self.categories do
 				self:_refreshTop(key)
 			end
 			task.wait(REFRESH_INTERVAL)
 		end
 	end)
+end
+
+function LeaderboardService:StopLoop()
+	self.running = false
 end
 
 -- Best-effort, never blocks gameplay: called from the action-success path
@@ -178,13 +182,6 @@ function LeaderboardService:Categories()
 		table.insert(keys, definition.key)
 	end
 	return keys
-end
-
-function LeaderboardService:Stop()
-end
-
-function LeaderboardService:Destroy()
-	self.app = nil
 end
 
 return LeaderboardService

@@ -15,4 +15,15 @@ local packages = ServerScriptService:WaitForChild("node_modules"):WaitForChild("
 local Loader = require(packages:WaitForChild("loader"))
 Loader.bootstrapGame(packages)
 
-require(ServerScriptService:WaitForChild("DeckServer"):WaitForChild("ServerController"))
+-- Resolved here, right after bootstrap, via the live `packages` reference
+-- rather than a fresh path lookup from ServerController: bootstrapGame's
+-- Studio fast path reparents `packages` itself to ReplicatedStorage as a
+-- side effect of populating it (real Nevermore behavior — see the comment
+-- above), so a fresh ServerScriptService.node_modules... lookup done later
+-- would hang forever in Studio specifically. `packages` stays a valid
+-- reference regardless of where its Parent ends up.
+local ServiceBag = require(packages:WaitForChild("servicebag"))
+local Maid = require(packages:WaitForChild("maid"))
+
+local ServerController = require(ServerScriptService:WaitForChild("DeckServer"):WaitForChild("ServerController"))
+ServerController.start(ServiceBag, Maid)

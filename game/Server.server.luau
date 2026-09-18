@@ -22,8 +22,8 @@ Loader.bootstrapGame(packages)
 -- above), so a fresh ServerScriptService.node_modules... lookup done later
 -- would hang forever in Studio specifically. `packages` stays a valid
 -- reference regardless of where its Parent ends up.
-local ServiceBag = require(packages:WaitForChild("servicebag"))
-local Maid = require(packages:WaitForChild("maid"))
+local ServiceBag = require(packages:WaitForChild("servicebag"):WaitForChild("Shared"):WaitForChild("ServiceBag"))
+local Maid = require(packages:WaitForChild("maid"):WaitForChild("Shared"):WaitForChild("Maid"))
 
 local ServerController = require(ServerScriptService:WaitForChild("DeckServer"):WaitForChild("ServerController"))
 ServerController.start(ServiceBag, Maid)

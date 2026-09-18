@@ -1,5 +1,17 @@
 {
   "name": "DeckEmpire",
+  "globIgnorePaths": [
+    "**/jest.config.lua",
+    "**/*.spec.lua",
+    "**/*.story.lua",
+    "**/*.project.json",
+    "**/CHANGELOG.md",
+    "**/LICENSE.md",
+    "**/README.md",
+    "**/package.json",
+    "**/deploy.nevermore.json",
+    "**/.package-lock.json"
+  ],
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {

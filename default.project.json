@@ -50,6 +50,11 @@
         "LeaderboardService": { "$path": "game/LeaderboardService.luau" },
         "PersistenceService": { "$path": "game/PersistenceService.luau" },
         "ServerController": { "$path": "game/ServerController.luau" }
+      },
+      "DeckPackages": {
+        "$className": "Folder",
+        "Trove": { "$path": "Packages/Trove.lua" },
+        "ProfileStore": { "$path": "ServerPackages/ProfileStore.lua" }
       }
     },
     "StarterPlayer": {

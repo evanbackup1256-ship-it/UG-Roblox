@@ -657,7 +657,7 @@ do
 	local toastTop = TOAST_TOP
 	local TOAST_MARGIN = 12
 	local TOAST_LIFETIME = 3.2
-	local TOAST_RESPONSE = 14
+	local TOAST_RESPONSE = 18
 
 	local toastWidth = 540
 	local toastFloor = math.huge
@@ -1329,8 +1329,8 @@ do
 	local revealScales = {}
 	local REVEAL_FADE, REVEAL_POP = {}, {}
 	for step = 0, 5 do
-		REVEAL_FADE[step] = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, step * 0.025)
-		REVEAL_POP[step] = TweenInfo.new(0.34, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, false, step * 0.025)
+		REVEAL_FADE[step] = TweenInfo.new(0.34, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, 0, false, step * 0.035)
+		REVEAL_POP[step] = TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, 0, false, step * 0.035)
 	end
 
 	own(function()
@@ -1389,8 +1389,8 @@ do
 
 		local page = pages[key]
 		page.CanvasPosition = Vector2.zero
-		page.Position = UDim2.fromOffset(if motion then 12 else 0, if motion then 18 else 0)
-		Kit.animate(page, { Position = UDim2.fromOffset(0, 0) }, 0.42, Enum.EasingStyle.Quint)
+		page.Position = UDim2.fromOffset(if motion then 10 else 0, if motion then 14 else 0)
+		Kit.animate(page, { Position = UDim2.fromOffset(0, 0) }, 0.38, Enum.EasingStyle.Quart)
 
 		if previous ~= key then
 			Kit.sound("page")
@@ -1416,7 +1416,7 @@ do
 					order += 1
 
 					object.BackgroundTransparency = 0.5
-					scale.Scale = 0.985
+					scale.Scale = 0.965
 
 					-- Routed through the scheduler (not Kit.animate, since
 					-- the stagger needs TweenInfo's delay parameter) so a

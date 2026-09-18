@@ -155,23 +155,10 @@ function InterfacePageSettings.build(Shared: InterfaceShared.Shared)
 				value.Text = math.floor(amount * 100 + 0.5) .. "%"
 			end)
 		else
-			control = Kit.button(card, "Toggle", "", function()
-				changePreference(key, not preferences[key])
+			local checkbox = Kit.checkbox(card, "Toggle", preferences[key] == true, function(value)
+				changePreference(key, value)
 			end)
-			-- Radius/thumb geometry below is derived from the track's own
-			-- 44px height (bumped from 36 to meet the touch-target
-			-- minimum) so the pill stays fully rounded and the thumb
-			-- stays vertically centered rather than drifting off-center.
-			Kit.corner(control, 22)
-
-			local thumb = Kit.create("Frame", control, {
-				Name = "Thumb",
-				Size = UDim2.fromOffset(24, 24),
-				Position = UDim2.fromOffset(5, 10),
-				BorderSizePixel = 0,
-				BackgroundColor3 = C.text,
-			})
-			Kit.corner(thumb, 12)
+			control = checkbox.instance
 
 			local shown
 
@@ -181,24 +168,7 @@ function InterfacePageSettings.build(Shared: InterfaceShared.Shared)
 					return
 				end
 				shown = on
-
-				control.BackgroundColor3 = if on then C.accent else C.raised
-				thumb.BackgroundColor3 = if on then C.ink else C.muted
-
-				-- Same slide-with-squash language as the thumb in
-				-- SettingsController, but combined into one Kit.animate
-				-- call per phase: Kit.animate cancels any tween already
-				-- in flight on the same object (it tracks one "animate"
-				-- slot per object), so Position and the stretch-Size have
-				-- to travel together or the second call would cut the
-				-- slide off before it lands.
-				Kit.animate(thumb, {
-					Position = UDim2.fromOffset(if on then 31 else 5, 10),
-					Size = UDim2.fromOffset(27, 24),
-				}, 0.07)
-				Kit.Scheduler.after(thumb, "squash", 0.07, function()
-					Kit.animate(thumb, { Size = UDim2.fromOffset(24, 24) }, 0.13, Enum.EasingStyle.Back)
-				end)
+				checkbox:SetChecked(on)
 			end)
 		end
 
@@ -260,9 +230,10 @@ function InterfacePageSettings.build(Shared: InterfaceShared.Shared)
 			if item.slider then
 				Kit.place(item.control, if narrow then 20 else w - 250, if narrow then 102 else 26, if narrow then w - 40 else 230, 44)
 			else
-				-- 44px tall: below this, the toggle's touch target misses
-				-- the 44x44 minimum guideline. Was 36.
-				Kit.place(item.control, if narrow then 20 else w - 80, if narrow then 102 else 26, 60, 44)
+				-- Kit.checkbox is a fixed 44x44 touch target (the minimum
+				-- guideline size) with a smaller visible box centered
+				-- inside it.
+				Kit.place(item.control, if narrow then 20 else w - 64, if narrow then 102 else 26, 44, 44)
 			end
 
 			y += height + 12

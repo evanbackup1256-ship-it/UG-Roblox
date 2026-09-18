@@ -1059,6 +1059,126 @@ function Kit.enable(button, enabled, copy, primary)
 	end
 end
 
+-- A self-contained checkbox toggle: not built on Kit.button at all (no
+-- shared state, no risk of inheriting an unrelated animation meant for
+-- push-buttons — the settings toggle previously reused Kit.button and
+-- picked up a squash effect meant for confirm actions, distorting its own
+-- geometry). Full 44x44 touch target with a smaller visible box centered
+-- inside it; checked state fills the box and pops a checkmark in, rather
+-- than sliding a pill thumb.
+function Kit.checkbox(parent, name, initial, onToggle)
+	local hit = Kit.create("TextButton", parent, {
+		Name = name,
+		Text = "",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(44, 44),
+		AutoButtonColor = false,
+		Selectable = true,
+	})
+
+	local box = Kit.create("Frame", hit, {
+		Name = "Box",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(26, 26),
+		BackgroundColor3 = Kit.colors.raised,
+		BorderSizePixel = 0,
+	})
+	Kit.corner(box, 7)
+	local edge = Kit.stroke(box, Kit.colors.line, 0.3)
+	Kit.Theme.paint(edge, "Color", "line")
+	Kit.focusRing(hit)
+
+	local mark = Kit.create("ImageLabel", box, {
+		Name = "Mark",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(16, 16),
+		BackgroundTransparency = 1,
+		Image = Icons.asset("check"),
+		ImageColor3 = Kit.colors.ink,
+		ImageTransparency = 1,
+		ScaleType = Enum.ScaleType.Fit,
+	})
+	local markScale = Kit.create("UIScale", mark, { Scale = 0.4 })
+
+	local checked = initial and true or false
+
+	local function paint(animated)
+		if checked then
+			if animated then
+				Kit.animate(box, { BackgroundColor3 = Kit.colors.accent }, 0.16)
+				Kit.animate(edge, { Transparency = 1 }, 0.16)
+				markScale.Scale = 0.55
+				mark.ImageTransparency = 0.2
+				Kit.animate(markScale, { Scale = 1 }, 0.22, Enum.EasingStyle.Back)
+				Kit.animate(mark, { ImageTransparency = 0 }, 0.14)
+			else
+				box.BackgroundColor3 = Kit.colors.accent
+				edge.Transparency = 1
+				markScale.Scale = 1
+				mark.ImageTransparency = 0
+			end
+		else
+			if animated then
+				Kit.animate(box, { BackgroundColor3 = Kit.colors.raised }, 0.16)
+				Kit.animate(edge, { Transparency = 0.3 }, 0.16)
+				Kit.animate(markScale, { Scale = 0.4 }, 0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+				Kit.animate(mark, { ImageTransparency = 1 }, 0.12)
+			else
+				box.BackgroundColor3 = Kit.colors.raised
+				edge.Transparency = 0.3
+				markScale.Scale = 0.4
+				mark.ImageTransparency = 1
+			end
+		end
+	end
+
+	paint(false)
+
+	local function hover()
+		if hit:GetAttribute("Disabled") then return end
+		if not checked then
+			Kit.animate(edge, { Transparency = 0, Color = Kit.colors.accent }, 0.16)
+		end
+	end
+	local function leave()
+		if not checked then
+			Kit.animate(edge, { Transparency = 0.3, Color = Kit.colors.line }, 0.2)
+		end
+	end
+	hit.MouseEnter:Connect(hover)
+	hit.MouseLeave:Connect(leave)
+	hit.SelectionGained:Connect(hover)
+	hit.SelectionLost:Connect(leave)
+
+	hit.Activated:Connect(function()
+		if hit:GetAttribute("Disabled") then
+			Kit.sound("denied")
+			Kit.shake(box)
+			return
+		end
+		checked = not checked
+		Kit.sound(if checked then "toggle_on" else "toggle_off")
+		paint(true)
+		if onToggle then
+			onToggle(checked)
+		end
+	end)
+
+	return {
+		instance = hit,
+		SetChecked = function(_, value, animated)
+			value = value and true or false
+			if value == checked then
+				return
+			end
+			checked = value
+			paint(animated ~= false)
+		end,
+	}
+end
+
 function Kit.progress(parent, name)
 	local track = Kit.create("Frame", parent, {
 		Name = name,

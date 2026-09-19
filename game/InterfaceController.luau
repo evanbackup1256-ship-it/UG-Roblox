@@ -1591,7 +1591,7 @@ do
 		tutorialStep += 1
 		act("tutorial", tostring(tutorialStep), nil, true)
 		renderTutorial()
-	end, true))
+	end, "primary"))
 
 	tutorialSkip = Kit.button(tutorialModal, "Skip", "Skip guide", closeTutorial)
 	tutorialSkip.ZIndex = 72

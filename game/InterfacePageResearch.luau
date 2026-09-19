@@ -113,7 +113,7 @@ function InterfacePageResearch.build(Shared: InterfaceShared.Shared)
 
 		local buy = liven(Kit.button(card, "Research", "", function()
 			Shared.fn.act("research", item.key)
-		end, true))
+		end, "primary"))
 
 		researchCards[index] = {
 			card = card,

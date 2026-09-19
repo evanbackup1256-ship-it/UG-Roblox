@@ -31,7 +31,7 @@ function InterfacePageEvents.build(Shared: InterfaceShared.Shared)
 		end
 	end
 
-	local redeem = liven(Kit.button(codes, "Redeem", "Redeem code", submitCode, true))
+	local redeem = liven(Kit.button(codes, "Redeem", "Redeem code", submitCode, "primary"))
 
 	local sanitizing = false
 	connect(codeInput:GetPropertyChangedSignal("Text"), function()
@@ -102,7 +102,7 @@ function InterfacePageEvents.build(Shared: InterfaceShared.Shared)
 
 	local markRead = liven(Kit.button(news, "MarkRead", "Mark latest as read", function()
 		Shared.fn.act("changelog")
-	end, true))
+	end, "primary"))
 
 	local function refreshChangelog()
 		local bulletin = Config.Changelogs[changelogIndex]

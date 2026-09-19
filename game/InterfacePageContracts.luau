@@ -26,7 +26,7 @@ function InterfacePageContracts.build(Shared: InterfaceShared.Shared)
 
 		local claim = liven(Kit.button(card, "Claim", "", function()
 			Shared.fn.act("claim", contract.key)
-		end, true))
+		end, "primary"))
 
 		contractCards[i] = {
 			card = card,

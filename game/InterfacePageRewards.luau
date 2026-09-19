@@ -15,7 +15,7 @@ function InterfacePageRewards.build(Shared: InterfaceShared.Shared)
 
 	local dailyButton = liven(Kit.button(daily, "ClaimDaily", "Claim reward", function()
 		Shared.fn.act("daily")
-	end, true))
+	end, "primary"))
 
 	bind("rewards", function(s)
 		-- GetServerTimeNow() is seconds since the server booted, not a Unix

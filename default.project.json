@@ -22,7 +22,7 @@
         "AvatarPreview": { "$path": "game/AvatarPreview.luau" },
         "ClientController": { "$path": "game/ClientController.luau" },
         "Config": { "$path": "game/Config.luau" },
-        "DesignKit": { "$path": "game/DesignKit.luau" },
+        "DesignKit": { "$path": "game/DesignKit" },
         "EconomyService": { "$path": "game/EconomyService.luau" },
         "Icons": { "$path": "game/Icons.luau" },
         "InterfaceShared": { "$path": "game/InterfaceShared.luau" },

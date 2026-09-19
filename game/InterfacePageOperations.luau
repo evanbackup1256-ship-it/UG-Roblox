@@ -58,7 +58,7 @@ function InterfacePageOperations.build(Shared: InterfaceShared.Shared)
 
 		local launch = liven(Kit.button(card, "Launch", "Connecting…", function()
 			Shared.fn.act("operation", operation.key)
-		end, true))
+		end, "primary"))
 
 		operationCards[index] = {
 			card = card,

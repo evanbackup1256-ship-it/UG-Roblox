@@ -23,7 +23,7 @@ function InterfacePageOverview.build(Shared: InterfaceShared.Shared)
 
 	local job = liven(Kit.button(hero, "RunJob", "Clear next job", function()
 		Shared.fn.act("job")
-	end, true))
+	end, "primary"))
 
 	local sceneCard = Kit.card(home, "FleetPreview", 294)
 	local stage = Kit.create("Frame", sceneCard, {
@@ -93,7 +93,7 @@ function InterfacePageOverview.build(Shared: InterfaceShared.Shared)
 
 	local boostButton = liven(Kit.button(boost, "Activate", "Activate ×2", function()
 		Shared.fn.act("boost")
-	end, true))
+	end, "primary"))
 
 	bind("overview", function(s)
 		local research = s.research or {}

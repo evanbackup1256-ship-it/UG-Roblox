@@ -18,7 +18,7 @@ function InterfacePagePrestige.build(Shared: InterfaceShared.Shared)
 
 	local heroButton = liven(Kit.button(hero, "Prestige", "", function()
 		Shared.fn.act("prestige")
-	end, true))
+	end, "primary"))
 
 	local lastPrestigeCount = nil
 	bind("prestige", function(s)

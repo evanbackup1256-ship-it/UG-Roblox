@@ -210,7 +210,7 @@ function InterfacePageSettings.build(Shared: InterfaceShared.Shared)
 
 	local guideButton = liven(Kit.button(guideCard, "Replay", "Replay tutorial", function()
 		Shared.fn.showTutorial(1)
-	end, true))
+	end, "primary"))
 
 	layoutPage("settings", function(w)
 		local narrow = w < 620

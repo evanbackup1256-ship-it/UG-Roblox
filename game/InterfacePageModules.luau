@@ -48,7 +48,7 @@ function InterfacePageModules.build(Shared: InterfaceShared.Shared)
 
 		local calibrate = liven(Kit.button(card, "Calibrate", "Connecting…", function()
 			Shared.fn.act("module", module.key)
-		end, true))
+		end, "primary"))
 
 		moduleCards[index] = {
 			card = card,

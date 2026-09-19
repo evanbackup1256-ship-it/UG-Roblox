@@ -70,7 +70,7 @@ function InterfacePageInfrastructure.build(Shared: InterfaceShared.Shared)
 
 		local buy = liven(Kit.button(card, "Deploy", "Connecting…", function()
 			Shared.fn.act("buy", tier.key)
-		end, true))
+		end, "primary"))
 
 		tierCards[index] = {
 			card = card,

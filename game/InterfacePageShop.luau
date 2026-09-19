@@ -35,7 +35,7 @@ function InterfacePageShop.build(Shared: InterfaceShared.Shared)
 
 		local buy = liven(Kit.button(card, "BuyPackage", "", function()
 			Shared.fn.act("buyPackage", offer.key)
-		end, true))
+		end, "primary"))
 
 		offers[i] = {
 			card = card,

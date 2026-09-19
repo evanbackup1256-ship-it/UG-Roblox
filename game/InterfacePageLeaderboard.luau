@@ -286,19 +286,24 @@ function InterfacePageLeaderboard.build(Shared: InterfaceShared.Shared)
 
 	layoutPage("leaderboard", function(w)
 		local narrow = w < 480
-		local heroHeight = if narrow then 194 else 96
+		-- Title+detail occupy the top of the card (icon at y22, title y18,
+		-- detail y52 bottom-edge ~82); controls (category tabs + refresh)
+		-- get their own row below that, not overlapping it. Card height
+		-- grows to fit both rows instead of the fixed 96/194 that used to
+		-- put the controls on top of the title text.
+		local controlsY = if narrow then 100 else 96
+		local heroHeight = controlsY + 44 + 20
 
 		Kit.place(hero, 0, 137, w, heroHeight)
 		heroTitle.Size = UDim2.fromOffset(w - 80, 28)
 		heroDetail.Size = UDim2.fromOffset(w - 80, if narrow then 46 else 30)
 		heroDetail.TextWrapped = true
 
-		local controlsY = if narrow then 100 else 26
 		local tabWidth = 120
 		for i, entry in ipairs(categoryButtons) do
 			Kit.place(entry.button, 58 + (i - 1) * (tabWidth + 8), controlsY, tabWidth, 44)
 		end
-		Kit.place(refreshButton, if narrow then 58 else w - 150, if narrow then 148 else 26, 130, 44)
+		Kit.place(refreshButton, if narrow then 58 else w - 150, controlsY, 130, 44)
 
 		local rankY = 137 + heroHeight + 16
 		Kit.place(rankCard, 0, rankY, w, 72)

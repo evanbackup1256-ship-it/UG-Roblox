@@ -161,6 +161,8 @@ function Director:Build(entry)
 
 	local tint = entry.tint
 	local metal = Color3.fromRGB(58, 70, 68)
+	local darkMetal = Color3.fromRGB(30, 38, 37)
+	local brightTint = tint:Lerp(Color3.new(1, 1, 1), 0.35)
 
 	-- Base platform
 	part(Vector3.new(10, 0.25, 7), Vector3.new(0, -0.25, 0), Color3.fromRGB(97, 111, 97))
@@ -180,6 +182,37 @@ function Director:Build(entry)
 		for i = 1, 4 do
 			part(Vector3.new(3.5, 0.08, 0.14), Vector3.new(0, 0.5 + i * 0.4, -2), Color3.fromRGB(110, 127, 115))
 		end
+
+		-- Corner brackets: reinforce the crate's four vertical edges with a
+		-- narrower, darker metal strip so the silhouette reads as riveted
+		-- hardware rather than a flat-shaded box.
+		for _, x in ipairs({ -2.45, 2.45 }) do
+			for _, z in ipairs({ -1.85, 1.85 }) do
+				part(Vector3.new(0.16, 3.5, 0.16), Vector3.new(x, 1.8, z), darkMetal)
+			end
+		end
+
+		-- Corner rivets on the top face — small studs at each bracket's
+		-- top end, catching the rim light as tiny highlights.
+		for _, x in ipairs({ -2.45, 2.45 }) do
+			for _, z in ipairs({ -1.85, 1.85 }) do
+				part(Vector3.new(0.24, 0.1, 0.24), Vector3.new(x, 3.56, z), darkMetal, Enum.Material.Metal)
+			end
+		end
+
+		-- Recessed door seam down the front face, splitting it visually
+		-- into two panels the way a real shipping container's doors would.
+		part(Vector3.new(0.06, 3.3, 0.05), Vector3.new(0, 1.8, 1.91), darkMetal)
+
+		-- Handle/latch on the front face, right of the seam.
+		part(Vector3.new(0.5, 0.14, 0.16), Vector3.new(1.1, 1.9, 1.94), darkMetal, Enum.Material.Metal)
+		part(Vector3.new(0.14, 0.5, 0.16), Vector3.new(1.1, 1.6, 1.94), darkMetal, Enum.Material.Metal)
+
+		-- Side vent grille: a short run of thin slats on one side wall,
+		-- mirroring the front-face vent stripes already present.
+		for i = 1, 3 do
+			part(Vector3.new(0.1, 0.06, 1.6), Vector3.new(-2.49, 2.3 + i * 0.22, 0), darkMetal)
+		end
 	else
 		-- Server racks
 		local count = 2 + entry.seed % 2
@@ -189,13 +222,42 @@ function Director:Build(entry)
 			local height = 3.8 + (entry.seed % 4) * 0.35
 
 			part(Vector3.new(2.1, height, 2.4), Vector3.new(x, height / 2, 0), metal)
-			part(Vector3.new(2.15, 0.14, 2.45), Vector3.new(x, height, 0), tint:Lerp(Color3.new(1, 1, 1), 0.25))
+			part(Vector3.new(2.15, 0.14, 2.45), Vector3.new(x, height, 0), brightTint)
+
+			-- Vertical corner posts, slightly proud of the cabinet face —
+			-- the same "riveted hardware" silhouette break the crate's
+			-- brackets add, scaled for a taller, narrower rack.
+			for _, z in ipairs({ -1.19, 1.19 }) do
+				part(Vector3.new(0.12, height, 0.12), Vector3.new(x - 1.03, height / 2, z), darkMetal)
+				part(Vector3.new(0.12, height, 0.12), Vector3.new(x + 1.03, height / 2, z), darkMetal)
+			end
+
+			-- Base foot / kick plate, grounding the cabinet visually.
+			part(Vector3.new(2.2, 0.16, 2.5), Vector3.new(x, 0.08, 0), darkMetal)
 
 			for slot = 1, 5 do
 				local y = slot * height / 6
 				part(Vector3.new(1.8, 0.44, 0.16), Vector3.new(x, y, 1.23), Color3.fromRGB(87, 104, 99))
 				part(Vector3.new(1.05, 0.06, 0.05), Vector3.new(x - 0.17, y, 1.34), Color3.fromRGB(25, 34, 31))
 				part(Vector3.new(0.12, 0.12, 0.05), Vector3.new(x + 0.64, y, 1.35), tint, Enum.Material.Neon)
+
+				-- A thin horizontal seam under each slot, and a small
+				-- secondary status LED beside the main one, so each bay
+				-- reads as its own populated unit instead of a repeated
+				-- flat plate.
+				part(Vector3.new(1.8, 0.02, 0.02), Vector3.new(x, y - 0.24, 1.3), darkMetal)
+				part(Vector3.new(0.08, 0.08, 0.05), Vector3.new(x + 0.5, y, 1.35), Color3.fromRGB(210, 210, 210), Enum.Material.Neon)
+			end
+
+			-- Rear cable bundle: a loose vertical run of thin dark cylinders
+			-- along the back face, breaking up the rack's flat back plane
+			-- and reading as real infrastructure from any angle.
+			for i = 1, 3 do
+				part(
+					Vector3.new(0.1, height * 0.7, 0.1),
+					Vector3.new(x - 0.6 + (i - 1) * 0.6, height * 0.4, -1.22),
+					darkMetal
+				)
 			end
 		end
 	end

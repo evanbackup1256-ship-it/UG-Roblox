@@ -1074,31 +1074,21 @@ for index, definition in ipairs(definitions) do
 
 	local button = Kit.button(navScroll, "Nav_" .. key, "", function()
 		switchPage(key)
-	end)
-	Kit.place(button, 0, (index - 1) * 49, 180, 44)
+	end, "nav")
+	Kit.place(button, 0, (index - 1) * 54, 180, 46)
 	button.BackgroundTransparency = 1
+	Kit.corner(button, Kit.radius.control)
 
 	local icon = Kit.place(
 		if key == "prestige" then Kit.rocketIcon(button, "Icon", C.muted) else Kit.icon(button, "Icon", key),
-		14, 11, 22, 22
+		16, 12, 22, 22
 	)
-	local caption = positionText(button, "Caption", title, 48, 0, 140, 44, 13, C.muted, true)
-
-	local indicator = Kit.create("Frame", button, {
-		Name = "Active",
-		BackgroundColor3 = C.accent,
-		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(0, 13),
-		Size = UDim2.fromOffset(3, 18),
-		Visible = false,
-	})
-	Kit.corner(indicator, 2)
+	local caption = positionText(button, "Caption", title, 50, 0, 140, 46, 13, C.muted, true)
 
 	nav[key] = {
 		button = button,
 		icon = icon,
 		caption = caption,
-		indicator = indicator,
 		scale = button:FindFirstChildOfClass("UIScale"),
 	}
 
@@ -1356,23 +1346,20 @@ do
 
 		for name, item in nav do
 			local active = name == key
-			item.button.BackgroundColor3 = C.raised
+			-- Bold filled pill instead of a thin left-edge indicator bar:
+			-- the old treatment (a 3px accent sliver plus a subtle tint)
+			-- read as unclear which page was active at a glance. A full
+			-- accent-colored fill with dark ink text is unambiguous the
+			-- same way a primary button already is.
+			item.button.BackgroundColor3 = if active then C.accent else C.raised
 			item.button.BackgroundTransparency = if active then 0 else 1
-			item.indicator.Visible = active
-
-			if active then
-				item.indicator.Size = UDim2.fromOffset(1, 18)
-				Kit.animate(item.indicator, { Size = UDim2.fromOffset(3, 18) }, 0.24, Enum.EasingStyle.Back)
-			else
-				item.indicator.Size = UDim2.fromOffset(3, 18)
-			end
 
 			if item.scale then
-				Kit.animate(item.scale, { Scale = if active then 1.018 else 1 }, 0.24, Enum.EasingStyle.Back)
+				Kit.animate(item.scale, { Scale = if active then 1.03 else 1 }, 0.22, Enum.EasingStyle.Back)
 			end
 
-			item.caption.TextColor3 = if active then C.text else C.muted
-			Kit.tintIcon(item.icon, if active then C.accent else C.muted)
+			item.caption.TextColor3 = if active then C.ink else C.muted
+			Kit.tintIcon(item.icon, if active then C.ink else C.muted)
 		end
 
 		crumb.Text = "WORKSPACE  /  " .. string.upper(nav[key].caption.Text)
@@ -1702,25 +1689,28 @@ do
 		)
 
 		-- navHeight's `short` branch used to be 40px, below the 44px
-		-- minimum touch-target guideline (compact's 52 and the default 44
+		-- minimum touch-target guideline (compact's 52 and the default 46
 		-- both already clear it). navStep's short branch is bumped to
 		-- match so rows don't start overlapping now that navHeight grew.
-		local navStep = if compact then 56 elseif short then 48 else 49
-		local navHeight = if compact then 52 elseif short then 44 else 44
+		-- Rows are a bit taller and more spaced than before, and now sit
+		-- inside a rounded pill (Kit.radius.control) that goes solid
+		-- accent-filled when active, instead of a thin left-edge bar.
+		local navStep = if compact then 58 elseif short then 50 else 54
+		local navHeight = if compact then 52 elseif short then 44 else 46
 		navScroll.CanvasSize = UDim2.fromOffset(0, #definitions * navStep)
 
 		for index, definition in ipairs(definitions) do
 			local key = definition[1]
 			local item = nav[key]
 
-			Kit.place(item.button, 2, (index - 1) * navStep, railWidth - (if compact then 14 else 32), navHeight)
+			Kit.place(item.button, 4, (index - 1) * navStep, railWidth - (if compact then 18 else 36), navHeight)
 
 			item.caption.Text = if compact then compactNames[key] else definition[2]
 			item.caption.TextSize = if compact then 9 else 13
 			item.caption.TextXAlignment = if compact then Enum.TextXAlignment.Center else Enum.TextXAlignment.Left
-			item.caption.Position = if compact then UDim2.fromOffset(0, 30) else UDim2.fromOffset(48, 0)
-			item.caption.Size = if compact then UDim2.new(1, 0, 0, 18) else UDim2.new(1, -52, 1, 0)
-			item.icon.Position = UDim2.fromOffset(14, if compact then 5 else 11)
+			item.caption.Position = if compact then UDim2.fromOffset(0, 30) else UDim2.fromOffset(50, 0)
+			item.caption.Size = if compact then UDim2.new(1, 0, 0, 18) else UDim2.new(1, -54, 1, 0)
+			item.icon.Position = UDim2.fromOffset(16, if compact then 5 else 12)
 		end
 
 		-- avatar/username/role are children of `rail`, positioned in its

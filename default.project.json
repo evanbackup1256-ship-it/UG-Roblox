@@ -48,7 +48,6 @@
         "ShopService": { "$path": "game/ShopService.luau" },
         "StateService": { "$path": "game/StateService.luau" },
         "Types": { "$path": "game/Types.luau" },
-        "UIPrimitives": { "$path": "game/UIPrimitives.luau" },
         "Validation": { "$path": "game/Validation.luau" },
         "InterfaceController": { "$path": "game/InterfaceController.luau" }
       }

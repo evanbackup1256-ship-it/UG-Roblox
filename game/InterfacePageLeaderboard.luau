@@ -98,7 +98,7 @@ function InterfacePageLeaderboard.build(Shared: InterfaceShared.Shared)
 			BackgroundTransparency = 1,
 			Visible = false,
 		})
-		Kit.corner(row, 6)
+		Kit.corner(row, Kit.radius.control)
 		local scale = Kit.create("UIScale", row, { Name = "RevealScale", Scale = 1 })
 
 		local rank = positionText(row, "Rank", "", 20, 0, 60, ROW_HEIGHT, 13, C.muted, true)

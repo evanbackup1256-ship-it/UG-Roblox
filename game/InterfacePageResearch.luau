@@ -42,7 +42,7 @@ function InterfacePageResearch.build(Shared: InterfaceShared.Shared)
 			BackgroundColor3 = C.raised,
 			BorderSizePixel = 0,
 		})
-		Kit.corner(iconShell, 8)
+		Kit.corner(iconShell, 12)
 		local icon = Kit.icon(iconShell, "Icon", synergy.icon or "research", C.muted)
 		Kit.place(icon, 4, 4, 24, 24)
 

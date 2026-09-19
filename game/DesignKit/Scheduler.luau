@@ -26,8 +26,8 @@ local function bucket(object)
 end
 
 local function releaseEntry(entry)
-	if entry.tween then
-		entry.tween:Cancel()
+	if entry.cancel then
+		entry.cancel()
 	end
 	if entry.thread then
 		task.cancel(entry.thread)
@@ -51,17 +51,36 @@ local function watch(object)
 	end)
 end
 
--- Registers a tween against (object, key), cancelling and replacing
--- whatever was previously registered under that same key.
-function M.Scheduler.track(object, key, tween)
+-- Registers a cancellable animation against (object, key), cancelling and
+-- replacing whatever was previously registered under that same key.
+-- `cancellable` is either a real Tween instance (still used by the
+-- infinite-loop TweenService effects — gradientAnimate's sheen/rainbow/
+-- pulse, progressShimmer) or any table exposing a :Cancel() method (a
+-- SpringDriver.animate handle). Either way this file only ever needs to
+-- know "can I cancel this", never which kind it is — so every existing
+-- caller of Scheduler.track(object, key, tween) keeps working unchanged
+-- regardless of which animation engine produced what it's passing in.
+function M.Scheduler.track(object, key, cancellable)
 	watch(object)
 	local entries = bucket(object)
 	local previous = entries[key]
 	if previous then
 		releaseEntry(previous)
 	end
-	entries[key] = { tween = tween }
-	return tween
+
+	local cancel
+	if typeof(cancellable) == "Instance" then
+		cancel = function()
+			cancellable:Cancel()
+		end
+	elseif type(cancellable) == "table" and type(cancellable.Cancel) == "function" then
+		cancel = function()
+			cancellable:Cancel()
+		end
+	end
+
+	entries[key] = { cancel = cancel }
+	return cancellable
 end
 
 -- Schedules callback after `seconds`, cancellable via the same (object,

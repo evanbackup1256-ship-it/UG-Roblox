@@ -2,6 +2,8 @@ local TweenService = game:GetService("TweenService")
 
 local Icons = require(script.Parent.Parent.Icons)
 local Tokens = require(script.Parent.Tokens)
+local Motion = require(script.Parent.Parent.MotionService)
+local SpringDriver = require(script.Parent.SpringDriver)
 local Scheduler = require(script.Parent.Scheduler)
 local Primitives = require(script.Parent.Primitives)
 
@@ -13,23 +15,55 @@ local count = Scheduler._count
 local M = {}
 M.motion = true
 
+-- Translates Kit.animate's 3rd/4th/5th arguments — either a new preset
+-- name string ("snappy"/"smooth"/"bouncy") or the legacy TweenInfo-style
+-- (duration, EasingStyle, EasingDirection) triple every existing call
+-- site still passes — into one of MotionService.Presets. This is what
+-- lets every one of the 27+ existing Kit.animate call sites keep working
+-- unchanged at this checkpoint: nothing needs to be rewritten to a preset
+-- name for the spring engine to already be live underneath it. Enum
+-- .EasingDirection is accepted but ignored (springs have no In/Out/InOut
+-- concept) — every real call site's EasingDirection is either the default
+-- Out or the one Controls.luau checkbox-uncheck In, which reads fine as a
+-- plain snappy settle in practice.
+local function resolvePreset(presetOrDuration, style)
+	if type(presetOrDuration) == "string" and Motion.Presets[presetOrDuration] then
+		return presetOrDuration
+	end
+	if style == Enum.EasingStyle.Back then
+		return "bouncy"
+	end
+	local duration = presetOrDuration
+	if type(duration) == "number" and duration <= 0.15 then
+		return "snappy"
+	end
+	return "smooth"
+end
+
+-- Spring-driven: `duration`'s old role (this argument's 3rd position) now
+-- doubles as a preset-name string ("snappy"/"smooth"/"bouncy") OR keeps
+-- working as a legacy (duration, style, direction) triple, translated via
+-- resolvePreset above. Infinite-loop effects (gradientAnimate's sheen/
+-- rainbow/pulse, progressShimmer) deliberately stay on raw TweenService
+-- below, not on this — a spring settles toward a target and stops, it has
+-- no native "loop forever" concept, and building one for 4 call sites
+-- that have never needed tuning isn't worth the surface area. Do not
+-- "helpfully" convert those to Kit.animate.
 function M.animate(object, properties, duration, style, direction)
 	if not M.motion then
+		SpringDriver.cancel(object, "animate")
 		Scheduler.Scheduler.clear(object, "animate")
 		for key, value in pairs(properties) do
 			object[key] = value
 		end
 		return
 	end
-	local tween = TweenService:Create(
-		object,
-		TweenInfo.new(duration or 0.2, style or Enum.EasingStyle.Quint, direction or Enum.EasingDirection.Out),
-		properties
-	)
-	Scheduler.Scheduler.track(object, "animate", tween)
-	tween:Play()
+
+	local preset = resolvePreset(duration, style)
+	local handle = SpringDriver.animate(object, "animate", properties, preset)
+	Scheduler.Scheduler.track(object, "animate", handle)
 	count("tweensStarted")
-	return tween
+	return handle
 end
 
 -- A small sequencing layer over M.animate: runs a list of

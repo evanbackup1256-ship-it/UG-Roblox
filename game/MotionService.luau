@@ -83,6 +83,20 @@ end
 -- opposite offsets rather than the same Vector2 target.
 MotionService.Spring = Spring
 
+-- Named presets translating the old TweenInfo-style (duration, EasingStyle,
+-- EasingDirection) vocabulary into spring frequency/damping pairs, used by
+-- DesignKit/Motion.luau's Kit.animate. Deliberately just 3: the real
+-- call-site inventory across this codebase clusters into "fast plain
+-- settle", "gentler plain settle", and "one visible overshoot then settle"
+-- (Enum.EasingStyle.Back) — not a generic formula, since duration (a fixed
+-- endpoint) and spring params (an asymptotic approach) don't have a
+-- principled 1:1 mapping worth inventing for 3 buckets.
+MotionService.Presets = {
+	snappy = { frequency = 9, damping = 1 },
+	smooth = { frequency = 5, damping = 1 },
+	bouncy = { frequency = 6, damping = 0.55 },
+}
+
 function MotionService.vectorSpring(frequency, damping)
 	local x = Spring.new(0, frequency, damping)
 	local y = Spring.new(0, frequency, damping)

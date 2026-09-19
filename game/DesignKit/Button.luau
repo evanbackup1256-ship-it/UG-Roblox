@@ -50,7 +50,15 @@ local function hoverLeave(scale, edge)
 end
 
 local function clickRipple(button, primary)
-	local pulse = Primitives.create("Frame", button, {
+	-- Parented into the button's own clip-mask wrapper (see M.button),
+	-- never into `button` directly — a UIStroke straddles its object's own
+	-- border (half in, half out), so if the button itself clipped its
+	-- descendants, its own edge glow and focus ring would get their outer
+	-- half cut off wherever a ScrollingFrame ancestor scrolled them near
+	-- an edge. The ripple still needs *something* clipping it to the pill
+	-- shape so it doesn't spill past the button's rounded corners, hence
+	-- the separate wrapper that clips only this.
+	local pulse = Primitives.create("Frame", button:FindFirstChild("ClipMask"), {
 		Name = "Pulse",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
@@ -110,7 +118,20 @@ function M.button(parent, name, copy, callback, variant)
 	Scheduler.Theme.paint(edge, "Color", "accent")
 	Motion.focusRing(button)
 	local scale = Primitives.create("UIScale", button, { Scale = 1 })
-	button.ClipsDescendants = true
+
+	-- Clips only the click-ripple (clickRipple parents into this, not into
+	-- `button` directly) — the button itself never clips its descendants,
+	-- so its own edge glow / focus ring strokes (which straddle the
+	-- button's border, half in/half out, per how UIStroke renders) never
+	-- get their outer half cut off by a ScrollingFrame ancestor scrolling
+	-- them near its edge.
+	local clipMask = Primitives.create("Frame", button, {
+		Name = "ClipMask",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		ClipsDescendants = true,
+	})
+	Primitives.corner(clipMask, Tokens.radius.pill)
 
 	button.MouseEnter:Connect(function()
 		if button:GetAttribute("Disabled") then return end

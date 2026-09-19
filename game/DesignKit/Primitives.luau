@@ -81,7 +81,14 @@ function M.card(parent, name, height, color)
 		BorderSizePixel = 0,
 	})
 	M.corner(card, Tokens.radius.surface)
-	M.stroke(card, colors.line, 0.88)
+	-- Thin hairline (glow = false), not the thicker glow stroke: cards are
+	-- placed flush against their ScrollingFrame parent's edges (x=0, full
+	-- width) by every page's layout code, and UIStroke always straddles
+	-- its object's own border — the glow stroke's outward-bleeding half
+	-- would visibly clip against the scrolling container's own clip
+	-- bounds at rest, not just mid-scroll. The thin hairline's bleed is
+	-- small enough to stay imperceptible in the same situation.
+	M.stroke(card, colors.line, 0.88, false)
 	return card
 end
 

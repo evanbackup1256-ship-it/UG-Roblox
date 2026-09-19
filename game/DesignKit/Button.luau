@@ -115,6 +115,14 @@ function M.button(parent, name, copy, callback, variant)
 	Scheduler.Theme.paint(button, "BackgroundColor3", primary and "accent" or "raised")
 	Primitives.corner(button, Tokens.radius.pill)
 	local edge = Primitives.stroke(button, colors.accent, Tokens.glow.restTransparency)
+	-- Named explicitly: a button also gets a FocusRing UIStroke (from
+	-- Motion.focusRing below), and FindFirstChildOfClass("UIStroke") with
+	-- two UIStroke children returns whichever one happens to be first in
+	-- Roblox's internal child order — not necessarily this one. Kit.enable
+	-- was hitting that ambiguity and occasionally animating the wrong
+	-- stroke (the focus ring instead of the hover-glow edge), leaving the
+	-- real edge stroke stuck at whatever transparency it last had.
+	edge.Name = "Edge"
 	Scheduler.Theme.paint(edge, "Color", "accent")
 	Motion.focusRing(button)
 	local scale = Primitives.create("UIScale", button, { Scale = 1 })
@@ -189,11 +197,22 @@ function M.enable(button, enabled, copy, primary)
 	button.BackgroundColor3 = colors[backgroundColor]
 
 	button.Active = enabled
+	local scale = button:FindFirstChildOfClass("UIScale")
+	-- Looked up by the explicit name Kit.button gives this stroke — a
+	-- button also has a FocusRing UIStroke, and FindFirstChildOfClass
+	-- doesn't disambiguate between the two.
+	local stroke = button:FindFirstChild("Edge")
 	if not enabled then
-		local scale = button:FindFirstChildOfClass("UIScale")
-		local stroke = button:FindFirstChildOfClass("UIStroke")
 		if scale then Motion.animate(scale, { Scale = 1 }, 0.16) end
 		if stroke then Motion.animate(stroke, { Transparency = 1, Thickness = Tokens.glow.thickness }, 0.16) end
+	else
+		-- Restore the stroke's rest state on re-enable — previously only
+		-- the disable path touched it at all, so a button disabled then
+		-- re-enabled before its next real hover (e.g. Leaderboard's
+		-- Refresh button, disabled during its own auto-fetch on page
+		-- load) stayed stuck fully transparent until something else
+		-- happened to hover it.
+		if stroke then Motion.animate(stroke, { Transparency = Tokens.glow.restTransparency, Thickness = Tokens.glow.thickness }, 0.16) end
 	end
 end
 

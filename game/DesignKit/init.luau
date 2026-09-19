@@ -58,22 +58,37 @@ Kit.checkbox = Controls.checkbox
 Kit.progress = Controls.progress
 Kit.input = Controls.input
 
--- Kit.sound: a stub overwritten at runtime by InterfaceController's real
--- pooled/pitched cue system. Both Button and Controls read the sound hook
--- through ButtonModule.sound (Controls requires Button directly for this),
--- so assigning Kit.sound = fn must update ButtonModule.sound for the
--- override to actually reach both.
+-- Kit.sound / Kit.motion: both need every WRITE (not just the first) to
+-- propagate into the module that actually owns the real value —
+-- ButtonModule.sound (read by Button.luau/Controls.luau's effects) and
+-- Motion.motion (read by every M.animate-based effect's reduced-motion
+-- check). A plain __newindex metamethod only fires the FIRST time a key
+-- is assigned (Lua only consults __newindex when the key is absent from
+-- the table — once rawset makes it present, every later assignment
+-- bypasses the metamethod entirely and just overwrites the table field).
+-- Since InterfaceController.luau reassigns Kit.motion on every settings
+-- change (refreshPresentation), that would silently stop propagating
+-- after the very first assignment. __index + __newindex together make
+-- these two keys live entirely in the backing modules, with no table
+-- field of their own to go stale.
 setmetatable(Kit, {
-	__newindex = function(t, key, value)
+	__index = function(_, key)
+		if key == "sound" then
+			return ButtonModule.sound
+		elseif key == "motion" then
+			return Motion.motion
+		end
+		return nil
+	end,
+	__newindex = function(_, key, value)
 		if key == "sound" then
 			ButtonModule.sound = value
 		elseif key == "motion" then
 			Motion.motion = value
+		else
+			rawset(Kit, key, value)
 		end
-		rawset(t, key, value)
 	end,
 })
-Kit.sound = function() end
-Kit.motion = true
 
 return Kit

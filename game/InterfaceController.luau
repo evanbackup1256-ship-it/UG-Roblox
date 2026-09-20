@@ -21,6 +21,14 @@ local PreviewDirector = require(Package.PreviewDirector)
 local Shop = require(Package.ShopService)
 local InterfaceShared = require(Package.InterfaceShared)
 local MusicManager = require(Package.MusicManager)
+local Toast = require(Package.Interface.Toast)
+local Audio = require(Package.Interface.Audio)
+local Tutorial = require(Package.Interface.Tutorial)
+local GlobalSearch = require(Package.Interface.GlobalSearch)
+local SearchIndex = require(Package.SearchIndex)
+local ThemePresets = require(Package.DesignKit.ThemePresets)
+local Tokens = require(Package.DesignKit.Tokens)
+local SpringDriver = require(Package.DesignKit.SpringDriver)
 
 local C = Kit.colors
 local player = Players.LocalPlayer
@@ -204,6 +212,7 @@ local function fmt(value)
 end
 
 local preferences = deepCopy(Config.Settings)
+preferences.accentTheme = Config.DefaultAccentTheme
 local state
 local pending = false
 local requestSerial = 0
@@ -261,148 +270,13 @@ own(function()
 	Kit.sound = previousSound
 end)
 
-local effectsMix = own(Kit.create("SoundGroup", SoundService, {
-	Name = "DeckInterfaceEffects",
-	Volume = 1,
-}))
-
-Kit.create("CompressorSoundEffect", effectsMix, {
-	Name = "InterfaceLimiter",
-	Threshold = -5,
-	Ratio = 2.5,
-	Attack = 0.02,
-	Release = 0.12,
-})
-
-Kit.create("EqualizerSoundEffect", effectsMix, {
-	Name = "Presence",
-	LowGain = -1,
-	MidGain = 1.5,
-	HighGain = 2.5,
-})
-
-local audio = own(Kit.create("Folder", SoundService, { Name = "DeckInterfaceAudio" }))
+local audioSystem = Audio.new(Kit, preferences, function() return alive end, defer, trace, own)
+local audio = audioSystem.audioFolder
 local musicManager = own(MusicManager.new(Kit, audio))
 local musicMix = musicManager:GetSoundGroup()
 
-local cueDefinitions = {
-	hover = { "139800881181209", 0.055, 1.10, 2, 0.09, true },
-	press = { "88442833509532", 0.070, 0.90, 2, 0.04 },
-	release = { "75490872912178", 0.065, 1.12, 2, 0.05 },
-	click = { "88442833509532", 0.220, 1.00, 2, 0.07 },
-	confirm = { "137214903496040", 0.280, 1.16, 2, 0.12 },
-	denied = { "87519554692663", 0.160, 0.92, 1, 0.18 },
-	page = { "75490872912178", 0.120, 1.04, 2, 0.12 },
-	notice = { "137214903496040", 0.160, 1.10, 2, 0.15 },
-	error = { "87519554692663", 0.200, 0.92, 1, 0.20 },
-	operation = { "137214903496040", 0.260, 0.94, 2, 0.18 },
-	upgrade = { "137214903496040", 0.240, 1.22, 2, 0.15 },
-	purchase = { "88442833509532", 0.240, 0.87, 2, 0.15 },
-	reward = { "137214903496040", 0.320, 1.30, 2, 0.20 },
-	toggle_on = { "75490872912178", 0.120, 1.20, 1, 0.10 },
-	toggle_off = { "75490872912178", 0.100, 0.88, 1, 0.10 },
-	slider = { "139800881181209", 0.050, 1.30, 2, 0.08 },
-	input = { "139800881181209", 0.070, 0.96, 1, 0.12 },
-	boot = { "75490872912178", 0.160, 0.82, 1, 0.30 },
-	ready = { "137214903496040", 0.280, 1.25, 1, 0.30 },
-	milestone = { "137214903496040", 0.380, 1.42, 2, 0.35 },
-	lock = { "87519554692663", 0.180, 0.78, 1, 0.16 },
-	flip = { "75490872912178", 0.100, 1.08, 2, 0.09 },
-}
-
-local sounds, soundCursor, cueClock = {}, {}, {}
-local cueCount = 0
-local duckMusic
-
-for name, definition in cueDefinitions do
-	cueCount += 1
-	local pool = {}
-	for index = 1, definition[4] do
-		pool[index] = Kit.create("Sound", audio, {
-			Name = string.format("%s_%02d", name, index),
-			SoundId = "rbxassetid://" .. definition[1],
-			Volume = definition[2],
-			PlaybackSpeed = definition[3],
-			SoundGroup = effectsMix,
-		})
-	end
-	sounds[name] = pool
-	soundCursor[name] = 0
-end
-
--- Cues in this set represent one physical gesture in quick succession
--- (mouse enters, then presses, then releases/activates, all within maybe
--- 100-200ms of each other for a fast click). Each used to cool down purely
--- on its own name, so a quick click played hover+press+release+click as up
--- to four independent, audibly overlapping sounds. Every cue in this set
--- now hushes whichever gesture-hush cue played immediately before it (not
--- just hover), so a fast click plays one clean cue at a time — press cut
--- off by release, release cut off by the final click/confirm — instead of
--- stacking.
-local GESTURE_HUSH = { hover = true, press = true, release = true, click = true, confirm = true, denied = true }
-local lastGestureSound = nil
-
 Kit.sound = function(name)
-	if not alive or not preferences.sfx then
-		return
-	end
-
-	local definition = cueDefinitions[name]
-	if not definition then
-		return
-	end
-
-	if definition[6] and not preferences.hover then
-		return
-	end
-
-	if GESTURE_HUSH[name] and lastGestureSound and lastGestureSound.Playing then
-		lastGestureSound:Stop()
-		lastGestureSound = nil
-	end
-
-	local now = os.clock()
-	if now - (cueClock[name] or -math.huge) < definition[5] then
-		return
-	end
-	cueClock[name] = now
-
-	local pool = sounds[name]
-	local index = soundCursor[name] % #pool + 1
-	soundCursor[name] = index
-
-	local sound = pool[index]
-	sound:Stop()
-	sound.TimePosition = 0
-	sound.Volume = definition[2] * preferences.masterVolume * preferences.sfxVolume
-	sound:Play()
-
-	if GESTURE_HUSH[name] then
-		lastGestureSound = sound
-	end
-
-	if duckMusic and name ~= "hover" and name ~= "press" and name ~= "release" and name ~= "slider" and name ~= "input" then
-		duckMusic()
-	end
-end
-
-trace("audio: %d interaction cues loaded", cueCount)
-
-local duckGeneration = 0
-
-duckMusic = function()
-	if not preferences.music then
-		return
-	end
-
-	duckGeneration += 1
-	local generation = duckGeneration
-	Kit.animate(musicMix, { Volume = 0.18 }, 0.08, Enum.EasingStyle.Quad)
-	defer(0.36, function()
-		if generation == duckGeneration then
-			Kit.animate(musicMix, { Volume = 0.42 }, 0.24, Enum.EasingStyle.Quad)
-		end
-	end)
+	audioSystem.playCue(name, musicMix)
 end
 
 local pulses = {}
@@ -466,6 +340,8 @@ local function bump(label)
 	end
 end
 
+local appliedAccentTheme = nil
+
 local function refreshPresentation()
 	Kit.motion = preferences.motion
 
@@ -473,6 +349,14 @@ local function refreshPresentation()
 
 	musicManager:RefreshVolume(preferences.masterVolume, preferences.musicVolume, pageMix)
 	musicManager:SetPlaying(preferences.music)
+
+	if preferences.accentTheme ~= appliedAccentTheme then
+		local preset = ThemePresets.presets[preferences.accentTheme] or ThemePresets.presets[ThemePresets.default]
+		appliedAccentTheme = preferences.accentTheme
+		for swatch, color in preset do
+			Kit.Theme.set(swatch, color)
+		end
+	end
 
 	syncPulses()
 end
@@ -557,26 +441,31 @@ end
 loadingSet(0.18, "Mapping controls")
 Kit.sound("boot")
 
+-- Bottom tab bar (was a left sidebar rail — Name kept as "Navigation" for
+-- continuity, only its geometry/orientation changed).
 local rail = Kit.create("Frame", root, {
 	Name = "Navigation",
 	BackgroundColor3 = C.navigation,
 	BorderSizePixel = 0,
 })
+Kit.stroke(rail, C.line, 0.7, false)
 
 Kit.create("Frame", rail, {
 	Name = "Edge",
-	Position = UDim2.new(1, -1, 0, 0),
-	Size = UDim2.new(0, 1, 1, 0),
-	BackgroundColor3 = C.accent,
-	BackgroundTransparency = 0.72,
+	Position = UDim2.new(0, 0, 0, 0),
+	Size = UDim2.new(1, 0, 0, 1),
+	BackgroundColor3 = C.line,
+	BackgroundTransparency = 0.5,
 	BorderSizePixel = 0,
 })
 
-local wordmark = Kit.text(rail, "Wordmark", "DECK//", 24, C.text, true)
-wordmark.Font = Enum.Font.RobotoMono
+local wordmark = Kit.text(rail, "Wordmark", "DECK EMPIRE", 18, C.text, true)
+wordmark.Font = Tokens.font.bold
 
-local edition = Kit.text(rail, "Edition", "NETWORK OPERATIONS", 9, C.accent, true)
-edition.Font = Enum.Font.RobotoMono
+local railLed = Kit.statusDot(rail, C.compute, "Online", 6)
+
+local edition = Kit.text(rail, "Edition", "FLEET OPERATIONS", 9, C.textSub, true)
+edition.Font = Tokens.font.mono
 
 local navScroll = Kit.create("ScrollingFrame", rail, {
 	Name = "Destinations",
@@ -585,6 +474,17 @@ local navScroll = Kit.create("ScrollingFrame", rail, {
 	ScrollBarThickness = 0,
 	CanvasSize = UDim2.fromOffset(0, 400),
 })
+
+local navIndicator = Kit.create("Frame", navScroll, {
+	Name = "NavActiveIndicator",
+	BackgroundColor3 = C.accent,
+	BorderSizePixel = 0,
+	Size = UDim2.fromOffset(172, 46),
+	Position = UDim2.fromOffset(4, 0),
+	ZIndex = 1,
+})
+Kit.corner(navIndicator, Kit.radius.control)
+Kit.Theme.paint(navIndicator, "BackgroundColor3", "accent")
 
 local avatar = Kit.create("ImageLabel", rail, {
 	Name = "Avatar",
@@ -618,13 +518,84 @@ local header = Kit.create("Frame", root, {
 local crumb = Kit.text(header, "Location", "WORKSPACE  /  OVERVIEW", 11, C.muted, true)
 crumb.Font = Enum.Font.RobotoMono
 
-local balance = Kit.text(header, "Balance", "— compute", 16, C.text, true)
-balance.Font = Enum.Font.RobotoMono
-balance.TextXAlignment = Enum.TextXAlignment.Right
+local capsulesRack = Kit.create("Frame", header, {
+	Name = "CapsulesRack",
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+})
 
-local telemetry = Kit.text(header, "Telemetry", "FPS —   ·   PING —", 11, C.muted)
+local computeCapsule = Kit.create("Frame", capsulesRack, {
+	Name = "ComputeCapsule",
+	BackgroundColor3 = C.raised,
+	BorderSizePixel = 0,
+})
+Kit.corner(computeCapsule, Kit.radius.pill)
+local computeStroke = Kit.stroke(computeCapsule, C.line, 0.4)
+Kit.Theme.paint(computeCapsule, "BackgroundColor3", "raised")
+Kit.Theme.paint(computeStroke, "Color", "line")
+
+local computeIcon = Kit.icon(computeCapsule, "Icon", "overview", C.compute)
+Kit.place(computeIcon, 10, 8, 18, 18)
+
+local balance = Kit.text(computeCapsule, "Balance", "— compute", 13, C.text, true)
+balance.Font = Enum.Font.RobotoMono
+Kit.place(balance, 32, 2, 78, 30)
+
+local rateBadge = Kit.text(computeCapsule, "RateBadge", "+0/s", 11, C.compute, true)
+rateBadge.Font = Enum.Font.RobotoMono
+rateBadge.TextXAlignment = Enum.TextXAlignment.Right
+Kit.place(rateBadge, 110, 2, 62, 30)
+
+local energyCapsule = Kit.create("Frame", capsulesRack, {
+	Name = "EnergyCapsule",
+	BackgroundColor3 = C.raised,
+	BorderSizePixel = 0,
+})
+Kit.corner(energyCapsule, Kit.radius.pill)
+local energyStroke = Kit.stroke(energyCapsule, C.line, 0.4)
+Kit.Theme.paint(energyCapsule, "BackgroundColor3", "raised")
+Kit.Theme.paint(energyStroke, "Color", "line")
+
+local energyIcon = Kit.icon(energyCapsule, "Icon", "energy", C.energy)
+Kit.place(energyIcon, 8, 8, 18, 18)
+
+local energyVal = Kit.text(energyCapsule, "EnergyVal", "—", 12, C.energy, true)
+energyVal.Font = Enum.Font.RobotoMono
+Kit.place(energyVal, 28, 2, 58, 30)
+
+local dataCapsule = Kit.create("Frame", capsulesRack, {
+	Name = "DataCapsule",
+	BackgroundColor3 = C.raised,
+	BorderSizePixel = 0,
+})
+Kit.corner(dataCapsule, Kit.radius.pill)
+local dataStroke = Kit.stroke(dataCapsule, C.line, 0.4)
+Kit.Theme.paint(dataCapsule, "BackgroundColor3", "raised")
+Kit.Theme.paint(dataStroke, "Color", "line")
+
+local dataIcon = Kit.icon(dataCapsule, "Icon", "data", C.data)
+Kit.place(dataIcon, 8, 8, 18, 18)
+
+local dataVal = Kit.text(dataCapsule, "DataVal", "—", 12, C.data, true)
+dataVal.Font = Enum.Font.RobotoMono
+Kit.place(dataVal, 28, 2, 48, 30)
+
+local telemetryCapsule = Kit.create("Frame", capsulesRack, {
+	Name = "TelemetryCapsule",
+	BackgroundColor3 = C.raised,
+	BorderSizePixel = 0,
+})
+Kit.corner(telemetryCapsule, Kit.radius.pill)
+local telemetryStroke = Kit.stroke(telemetryCapsule, C.line, 0.4)
+Kit.Theme.paint(telemetryCapsule, "BackgroundColor3", "raised")
+Kit.Theme.paint(telemetryStroke, "Color", "line")
+
+local teleDot = Kit.statusDot(telemetryCapsule, C.accent, "Live", 8)
+Kit.place(teleDot, 10, 13, 8, 8)
+
+local telemetry = Kit.text(telemetryCapsule, "Telemetry", "FPS — · PING —", 11, C.muted, true)
 telemetry.Font = Enum.Font.RobotoMono
-telemetry.TextXAlignment = Enum.TextXAlignment.Right
+Kit.place(telemetry, 24, 2, 100, 30)
 
 Kit.create("Frame", header, {
 	Name = "Divider",
@@ -634,6 +605,20 @@ Kit.create("Frame", header, {
 	BackgroundColor3 = C.line,
 })
 
+local overclockBanner = Kit.create("Frame", root, {
+	Name = "OverclockBanner",
+	BackgroundColor3 = C.overclock,
+	BorderSizePixel = 0,
+	ClipsDescendants = true,
+	Visible = false,
+	ZIndex = 50,
+})
+Kit.corner(overclockBanner, Tokens.radius.control)
+Kit.stroke(overclockBanner, Color3.fromRGB(255, 255, 255), 0.7, false)
+local bannerLabel = Kit.text(overclockBanner, "Text", "⚡ Overclock Active — Fleet Output 2.0x", 12, Color3.fromRGB(255, 255, 255), true)
+bannerLabel.TextXAlignment = Enum.TextXAlignment.Center
+bannerLabel.Size = UDim2.fromScale(1, 1)
+
 local body = Kit.create("Frame", root, {
 	Name = "Pages",
 	BackgroundTransparency = 1,
@@ -642,326 +627,11 @@ local body = Kit.create("Frame", root, {
 
 local director = own(PreviewDirector.new(gui, preferences))
 
-local fitToasts
-
-do
-	local TOAST_SLOTS = 4
-	local TOAST_BACKLOG = 6
-	local TOAST_HEIGHT = 76
-	local TOAST_GAP = 10
-	-- Was a constant; now the base offset before the safe-area inset
-	-- fitToasts() adds each resize, so toasts don't stack under a visible
-	-- topbar/notch. TOAST_TOP itself stays fixed — toastTop is what
-	-- activateToast/stepToasts actually read.
-	local TOAST_TOP = 104
-	local toastTop = TOAST_TOP
-	local TOAST_MARGIN = 12
-	local TOAST_LIFETIME = 3.2
-	local TOAST_RESPONSE = 18
-
-	local toastWidth = 540
-	local toastFloor = math.huge
-	local toastSlots = {}
-	local toastFree = {}
-	local toastLive = {}
-	local toastBacklog = {}
-	local toastStepper
-
-	for index = 1, TOAST_SLOTS do
-		local holder = Kit.create("Frame", root, {
-			Name = "Notification" .. index,
-			AnchorPoint = Vector2.new(1, 0),
-			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(toastWidth, TOAST_HEIGHT),
-			Visible = false,
-			ZIndex = 80,
-		})
-
-		local scale = Kit.create("UIScale", holder, { Name = "ToastScale", Scale = 1 })
-
-		local shadow = Kit.create("Frame", holder, {
-			Name = "Shadow",
-			Position = UDim2.fromOffset(6, 6),
-			Size = UDim2.fromScale(1, 1),
-			BackgroundColor3 = Color3.new(0, 0, 0),
-			BackgroundTransparency = 0.55,
-			BorderSizePixel = 0,
-			ZIndex = 1,
-		})
-		Kit.corner(shadow, 14)
-
-		local card = Kit.card(holder, "Card", TOAST_HEIGHT, C.panel)
-		card.Position = UDim2.fromOffset(0, 0)
-		card.Size = UDim2.fromScale(1, 1)
-		card.Active = true
-		card.ZIndex = 2
-
-		local bar = Kit.create("Frame", card, {
-			Name = "Accent",
-			Position = UDim2.fromOffset(0, 12),
-			Size = UDim2.fromOffset(4, 52),
-			BackgroundColor3 = C.accent,
-			BorderSizePixel = 0,
-			ZIndex = 51,
-		})
-		Kit.corner(bar, 2)
-
-		local icon = Kit.icon(card, "Icon", "check", C.ink)
-		icon.ZIndex = 51
-		Kit.place(icon, 18, 26, 24, 24)
-
-		local title = Kit.text(card, "Title", "Updated", 10, C.accent, true)
-		title.ZIndex = 51
-		title.Position = UDim2.fromOffset(56, 10)
-		title.Size = UDim2.new(1, -72, 0, 18)
-
-		local message = Kit.text(card, "Message", "", 13, C.text, true)
-		message.TextWrapped = true
-		message.TextTruncate = Enum.TextTruncate.None
-		message.ZIndex = 51
-		message.Position = UDim2.fromOffset(56, 27)
-		message.Size = UDim2.new(1, -72, 0, 38)
-
-		local timer = Kit.create("Frame", card, {
-			Name = "Timer",
-			Position = UDim2.new(0, 0, 1, -3),
-			Size = UDim2.new(1, 0, 0, 3),
-			BackgroundColor3 = C.accent,
-			BorderSizePixel = 0,
-			ZIndex = 52,
-		})
-
-		local slot = {
-			holder = holder,
-			scale = scale,
-			card = card,
-			bar = bar,
-			icon = icon,
-			title = title,
-			message = message,
-			timer = timer,
-			hovered = false,
-			entry = nil,
-		}
-
-		connect(card.MouseEnter, function()
-			slot.hovered = true
-		end)
-
-		connect(card.MouseLeave, function()
-			slot.hovered = false
-		end)
-
-		connect(card.InputBegan, function(input)
-			if slot.entry
-				and (input.UserInputType == Enum.UserInputType.MouseButton1
-					or input.UserInputType == Enum.UserInputType.Touch)
-			then
-				slot.entry.leaving = true
-			end
-		end)
-
-		toastSlots[index] = slot
-		toastFree[index] = slot
-	end
-
-	local function paintToast(slot, entry)
-		local tint = if entry.failed then C.error else C.accent
-
-		slot.title.Text = if entry.failed then "REQUEST REJECTED" else "COMPLETE"
-		slot.title.TextColor3 = tint
-		-- "codes"/"contracts" were unrelated feature-page icons left over
-		-- from an earlier pass — neither reads as success or failure.
-		-- "close"/"check" actually match the two states.
-		slot.icon.Image = Icons.asset(if entry.failed then "close" else "check")
-		slot.icon.ImageColor3 = tint
-		slot.bar.BackgroundColor3 = tint
-		slot.timer.BackgroundColor3 = tint
-		slot.message.Text = if entry.repeats > 1
-			then string.format("%s  ×%d", entry.message, entry.repeats)
-			else entry.message
-	end
-
-	local function activateToast(request)
-		local slot = table.remove(toastFree)
-		if not slot then
-			return false
-		end
-
-		local now = os.clock()
-		local entry = {
-			slot = slot,
-			message = request.message,
-			failed = request.failed,
-			repeats = 1,
-			expires = now + TOAST_LIFETIME,
-			x = toastWidth + TOAST_MARGIN + 30,
-			y = toastTop,
-			targetY = toastTop,
-			scale = 0.92,
-			leaving = false,
-		}
-
-		slot.entry = entry
-		slot.hovered = false
-		paintToast(slot, entry)
-
-		slot.timer.Size = UDim2.new(1, 0, 0, 3)
-		slot.scale.Scale = entry.scale
-		slot.holder.Position = UDim2.new(1, entry.x - TOAST_MARGIN, 0, entry.y)
-		slot.holder.Visible = true
-
-		if not entry.failed and request.cue == "milestone" then
-			Kit.gradientAnimate(slot.bar, "sheen", { color = C.accent })
-			if preferences.particles then
-				Kit.confetti(slot.card, C.accent)
-			end
-		else
-			Kit.Scheduler.clear(slot.bar, "gradient")
-		end
-
-		table.insert(toastLive, 1, entry)
-		Kit.sound(if request.failed then "error" else request.cue or "notice")
-		return true
-	end
-
-	local function approach(current, target, blend, epsilon)
-		local value = current + (target - current) * blend
-		if math.abs(target - value) <= epsilon then
-			return target
-		end
-		return value
-	end
-
-	local function stepToasts(dt)
-		local now = os.clock()
-		local blend = if preferences.motion then 1 - math.exp(-TOAST_RESPONSE * dt) else 1
-		local hidden = toastWidth + TOAST_MARGIN + 30
-		local cursor = toastTop
-		local kept = 0
-
-		for _, entry in toastLive do
-			local slot = entry.slot
-
-			if not entry.leaving then
-				if slot.hovered then
-					entry.expires += dt
-				elseif now >= entry.expires or (cursor > toastTop and cursor + TOAST_HEIGHT > toastFloor) then
-					entry.leaving = true
-				end
-			end
-
-			if not entry.leaving then
-				entry.targetY = cursor
-				cursor += TOAST_HEIGHT + TOAST_GAP
-				slot.timer.Size = UDim2.new(math.clamp((entry.expires - now) / TOAST_LIFETIME, 0, 1), 0, 0, 3)
-			end
-
-			local x = approach(entry.x, if entry.leaving then hidden else 0, blend, 0.05)
-			local y = approach(entry.y, entry.targetY, blend, 0.05)
-			if x ~= entry.x or y ~= entry.y then
-				entry.x, entry.y = x, y
-				slot.holder.Position = UDim2.new(1, x - TOAST_MARGIN, 0, y)
-			end
-
-			local scale = approach(entry.scale, 1, blend, 0.001)
-			if scale ~= entry.scale then
-				entry.scale = scale
-				slot.scale.Scale = scale
-			end
-
-			if entry.leaving and x == hidden then
-				slot.entry = nil
-				slot.hovered = false
-				slot.holder.Visible = false
-				table.insert(toastFree, slot)
-			else
-				kept += 1
-				toastLive[kept] = entry
-			end
-		end
-
-		for index = #toastLive, kept + 1, -1 do
-			toastLive[index] = nil
-		end
-
-		while toastBacklog[1] and toastFree[1] do
-			activateToast(table.remove(toastBacklog, 1))
-		end
-
-		if not toastLive[1] and toastStepper then
-			toastStepper:Disconnect()
-			toastStepper = nil
-		end
-	end
-
-	fitToasts = function(size, topInset)
-		toastWidth = if size.X < 550 then math.max(200, size.X - 88) else math.min(540, size.X - 24)
-		toastFloor = size.Y - TOAST_MARGIN
-		toastTop = TOAST_TOP + (topInset or 0)
-		for _, slot in toastSlots do
-			slot.holder.Size = UDim2.fromOffset(toastWidth, TOAST_HEIGHT)
-		end
-	end
-
-	local function wakeToasts()
-		if alive and not toastStepper then
-			toastStepper = RunService.Heartbeat:Connect(stepToasts)
-		end
-	end
-
-	own(function()
-		if toastStepper then
-			toastStepper:Disconnect()
-			toastStepper = nil
-		end
-		table.clear(toastLive)
-		table.clear(toastBacklog)
-		table.clear(toastFree)
-		table.clear(toastSlots)
-	end)
-
-	notify = function(message, ok, cue)
-		if not alive or (not preferences.notifications and ok ~= false) then
-			return
-		end
-
-		message = tostring(message or "")
-		local failed = ok == false
-
-		for _, entry in toastLive do
-			if not entry.leaving and entry.failed == failed and entry.message == message then
-				entry.repeats += 1
-				entry.expires = os.clock() + TOAST_LIFETIME
-				entry.scale = 0.96
-				entry.slot.scale.Scale = entry.scale
-				paintToast(entry.slot, entry)
-				Kit.sound(if failed then "error" else cue or "notice")
-				wakeToasts()
-				return
-			end
-		end
-
-		local request = { message = message, failed = failed, cue = cue }
-
-		if not activateToast(request) then
-			for index = #toastLive, 1, -1 do
-				local oldest = toastLive[index]
-				if not oldest.leaving then
-					oldest.leaving = true
-					break
-				end
-			end
-
-			if #toastBacklog >= TOAST_BACKLOG then
-				table.remove(toastBacklog, 1)
-			end
-			table.insert(toastBacklog, request)
-		end
-
-		wakeToasts()
-	end
-end
+-- Toast.new registers its own cleanup via the `own` callback it's given
+-- internally, so its return value doesn't need wrapping in own() itself.
+local toast = Toast.new(root, Kit, C, Icons, preferences, function() return alive end, connect, own)
+local fitToasts = toast.fit
+notify = toast.notify
 
 Shared.fn.notify = notify
 
@@ -1051,6 +721,9 @@ local function positionText(parent, name, copy, x, y, width, height, size, color
 	return Kit.place(Kit.text(parent, name, copy, size, color, bold), x, y, width, height)
 end
 
+local searchEntries = SearchIndex.build(definitions, Config)
+local globalSearch = GlobalSearch.new(header, root, Kit, C, searchEntries, function(key) switchPage(key) end, connect)
+
 -- Reuses `definitions`'s existing order as the single source of page order
 -- rather than a second hardcoded list (LB/RB page-cycling below).
 local pageOrder = {}
@@ -1077,13 +750,29 @@ for index, definition in ipairs(definitions) do
 	end, "nav")
 	Kit.place(button, 0, (index - 1) * 54, 180, 46)
 	button.BackgroundTransparency = 1
+	button.ZIndex = 2
 	Kit.corner(button, Kit.radius.control)
 
 	local icon = Kit.place(
 		if key == "prestige" then Kit.rocketIcon(button, "Icon", C.muted) else Kit.icon(button, "Icon", key),
 		16, 12, 22, 22
 	)
+	icon.ZIndex = 3
 	local caption = positionText(button, "Caption", title, 50, 0, 140, 46, 13, C.muted, true)
+	caption.ZIndex = 3
+
+	button.MouseEnter:Connect(function()
+		if selected ~= key then
+			Kit.animate(caption, { TextColor3 = C.text }, 0.15)
+			Kit.tintIcon(icon, C.text)
+		end
+	end)
+	button.MouseLeave:Connect(function()
+		if selected ~= key then
+			Kit.animate(caption, { TextColor3 = C.muted }, 0.18)
+			Kit.tintIcon(icon, C.muted)
+		end
+	end)
 
 	nav[key] = {
 		button = button,
@@ -1162,6 +851,8 @@ Shared.Kit = Kit
 Shared.Config = Config
 Shared.Icons = Icons
 Shared.C = C
+Shared.Tokens = Tokens
+Shared.SpringDriver = SpringDriver
 Shared.director = director
 Shared.player = player
 Shared.Shop = Shop
@@ -1344,25 +1035,41 @@ do
 			page.Visible = name == key
 		end
 
+		local index = table.find(pageOrder, key) or 1
+		local compact = root.AbsoluteSize.X < 1000
+		local barHeight = 72
+		local navStep = if compact then 68 else 84
+		local navHeight = barHeight - 12
+		local targetPos = UDim2.fromOffset((index - 1) * navStep + 4, 2)
+		local targetSize = UDim2.fromOffset(navStep - 8, navHeight - 4)
+		navIndicator.Size = targetSize
+
+		if motion then
+			SpringDriver.animate(navIndicator, "slide", { Position = targetPos }, "snappy")
+		else
+			navIndicator.Position = targetPos
+		end
+
 		for name, item in nav do
 			local active = name == key
-			-- Bold filled pill instead of a thin left-edge indicator bar:
-			-- the old treatment (a 3px accent sliver plus a subtle tint)
-			-- read as unclear which page was active at a glance. A full
-			-- accent-colored fill with dark ink text is unambiguous the
-			-- same way a primary button already is.
-			item.button.BackgroundColor3 = if active then C.accent else C.raised
-			item.button.BackgroundTransparency = if active then 0 else 1
+			item.button.BackgroundTransparency = 1
 
 			if item.scale then
-				Kit.animate(item.scale, { Scale = if active then 1.03 else 1 }, 0.22, Enum.EasingStyle.Back)
+				-- Bottom-tab-bar active-state mechanic: bounce-up + scale-up
+				-- on the icon itself, replacing the old subtle 1.03x nudge —
+				-- bounce is now the default interaction character.
+				Kit.animate(item.scale, { Scale = if active then 1.25 else 1 }, "bouncy")
+			end
+			if item.icon then
+				local restY = if compact then 6 else 6
+				Kit.animate(item.icon, { Position = UDim2.new(0.5, -11, 0, if active then restY - 4 else restY) }, "bouncy")
 			end
 
 			item.caption.TextColor3 = if active then C.ink else C.muted
 			Kit.tintIcon(item.icon, if active then C.ink else C.muted)
 		end
 
-		crumb.Text = "WORKSPACE  /  " .. string.upper(nav[key].caption.Text)
+		crumb.Text = "Workspace  /  " .. nav[key].caption.Text
 		crumb.TextTransparency = if motion then 0.55 else 0
 		Kit.animate(crumb, { TextTransparency = 0 }, 0.32)
 
@@ -1376,8 +1083,12 @@ do
 
 		local page = pages[key]
 		page.CanvasPosition = Vector2.zero
-		page.Position = UDim2.fromOffset(if motion then 10 else 0, if motion then 14 else 0)
-		Kit.animate(page, { Position = UDim2.fromOffset(0, 0) }, 0.38, Enum.EasingStyle.Quart)
+		page.Position = UDim2.fromOffset(if motion then 36 else 0, 0)
+		if motion then
+			SpringDriver.animate(page, "pageSlide", { Position = UDim2.fromOffset(0, 0) }, "snappy")
+		else
+			page.Position = UDim2.fromOffset(0, 0)
+		end
 
 		if previous ~= key then
 			Kit.sound("page")
@@ -1430,192 +1141,11 @@ do
 	Shared.fn.switchPage = switchPage
 end
 
-local fitTutorial
-local tutorialStarted = false
+local tutorial = Tutorial.new(root, Kit, C, Icons, Config, positionText, act, switchPage, preferences, liven)
+showTutorial = tutorial.show
+local fitTutorial = tutorial.fit
 
-do
-	local tutorialOverlay = Kit.create("Frame", root, {
-		Name = "Tutorial",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(0, 0, 0),
-		BackgroundTransparency = 0.25,
-		BorderSizePixel = 0,
-		Visible = false,
-		ZIndex = 70,
-	})
-
-	local tutorialModal = Kit.card(tutorialOverlay, "Guide", 390, C.panel)
-	tutorialModal.ZIndex = 71
-
-	local tutorialModalScale = Kit.create("UIScale", tutorialModal, { Name = "EntryScale", Scale = 1 })
-
-	local tutorialIcon = Kit.icon(tutorialModal, "Icon", "overview", C.accent)
-	tutorialIcon.ZIndex = 72
-
-	local tutorialKicker = positionText(tutorialModal, "Kicker", "GUIDED SETUP", 30, 28, 300, 20, 10, C.accent, true)
-	tutorialKicker.ZIndex = 72
-
-	local tutorialTitle = positionText(tutorialModal, "Title", "", 30, 74, 520, 70, 28, C.text, true)
-	tutorialTitle.TextWrapped = true
-	tutorialTitle.TextTruncate = Enum.TextTruncate.None
-	tutorialTitle.ZIndex = 72
-
-	local tutorialBody = positionText(tutorialModal, "Body", "", 30, 151, 520, 70, 14, C.muted)
-	tutorialBody.TextWrapped = true
-	tutorialBody.TextTruncate = Enum.TextTruncate.None
-	tutorialBody.ZIndex = 72
-
-	local tutorialProgress = positionText(tutorialModal, "Progress", "", 30, 236, 300, 22, 10, C.muted, true)
-	tutorialProgress.ZIndex = 72
-
-	local tutorialDots = {}
-	for index = 1, #Config.Tutorial do
-		local dot = Kit.create("Frame", tutorialModal, {
-			Name = "Step" .. index,
-			BackgroundColor3 = C.line,
-			BorderSizePixel = 0,
-			ZIndex = 72,
-		})
-		Kit.corner(dot, 3)
-		tutorialDots[index] = dot
-	end
-
-	local tutorialStep = 1
-	local tutorialBack, tutorialNext, tutorialSkip
-
-	local function tutorialLabels()
-		local width = tutorialModal.AbsoluteSize.X
-		local last = tutorialStep == #Config.Tutorial
-
-		tutorialSkip.Text = if width < 360 then "Skip" else "Skip guide"
-		tutorialNext.Text = if width < 360 then "Next"
-			elseif width < 480 then (if last then "Finish" else "Continue")
-			else (if last then "Finish setup" else "Continue")
-	end
-
-	local function renderTutorial()
-		local definition = Config.Tutorial[tutorialStep]
-		if not definition then
-			return
-		end
-
-		tutorialIcon.Image = Icons.asset(definition.icon)
-		tutorialTitle.Text = definition.title
-		tutorialBody.Text = definition.body
-		tutorialProgress.Text = string.format("STEP %d OF %d", tutorialStep, #Config.Tutorial)
-
-		for index, dot in ipairs(tutorialDots) do
-			dot.BackgroundColor3 = if index <= tutorialStep then C.accent else C.line
-		end
-
-		Kit.enable(tutorialBack, tutorialStep > 1, "Back", false)
-		tutorialLabels()
-		switchPage(definition.page)
-	end
-
-	local function closeTutorial()
-		if not tutorialOverlay.Visible then
-			return
-		end
-
-		Kit.sound("release")
-
-		if preferences.motion then
-			Kit.animate(tutorialOverlay, { BackgroundTransparency = 1 }, 0.2)
-			Kit.animate(tutorialModalScale, { Scale = 0.96 }, 0.2)
-			Kit.Scheduler.after(tutorialOverlay, "hide", 0.2, function()
-				tutorialOverlay.Visible = false
-				tutorialOverlay.BackgroundTransparency = 0.25
-				tutorialModalScale.Scale = 1
-			end)
-		else
-			tutorialOverlay.Visible = false
-		end
-
-		act("tutorial", "complete", nil, true)
-	end
-
-	showTutorial = function(step)
-		if tutorialStarted and tutorialOverlay.Visible then
-			return
-		end
-
-		Kit.sound("page")
-
-		tutorialStarted = true
-		tutorialStep = math.clamp(step or 1, 1, #Config.Tutorial)
-
-		Kit.Scheduler.clear(tutorialOverlay, "hide")
-		tutorialOverlay.Visible = true
-
-		if preferences.motion then
-			tutorialOverlay.BackgroundTransparency = 1
-			tutorialModalScale.Scale = 0.96
-			Kit.animate(tutorialOverlay, { BackgroundTransparency = 0.25 }, 0.22)
-			Kit.animate(tutorialModalScale, { Scale = 1 }, 0.26, Enum.EasingStyle.Back)
-		else
-			tutorialOverlay.BackgroundTransparency = 0.25
-			tutorialModalScale.Scale = 1
-		end
-
-		renderTutorial()
-	end
-
-	Shared.fn.showTutorial = showTutorial
-
-	tutorialBack = Kit.button(tutorialModal, "Back", "Back", function()
-		tutorialStep = math.max(1, tutorialStep - 1)
-		renderTutorial()
-	end)
-	tutorialBack.ZIndex = 72
-
-	tutorialNext = liven(Kit.button(tutorialModal, "Next", "Continue", function()
-		if tutorialStep >= #Config.Tutorial then
-			closeTutorial()
-			return
-		end
-
-		tutorialStep += 1
-		act("tutorial", tostring(tutorialStep), nil, true)
-		renderTutorial()
-	end, "primary"))
-
-	tutorialSkip = Kit.button(tutorialModal, "Skip", "Skip guide", closeTutorial)
-	tutorialSkip.ZIndex = 72
-
-	fitTutorial = function(size)
-		local width = math.min(600, size.X - 32)
-		local height = if size.X < 480 then 430 else 390
-
-		Kit.place(tutorialModal, (size.X - width) / 2, (size.Y - height) / 2, width, height)
-		Kit.place(tutorialIcon, 30, 28, 24, 24)
-
-		tutorialKicker.Position = UDim2.fromOffset(66, 30)
-		tutorialTitle.Size = UDim2.fromOffset(width - 60, 70)
-		tutorialBody.Size = UDim2.fromOffset(width - 60, if size.X < 480 then 108 else 70)
-
-		local controlsY = height - 70
-		tutorialProgress.Position = UDim2.fromOffset(30, controlsY - 66)
-
-		local dotWidth = math.max(16, math.floor((width - 60 - (#tutorialDots - 1) * 6) / #tutorialDots))
-		for index, dot in ipairs(tutorialDots) do
-			Kit.place(dot, 30 + (index - 1) * (dotWidth + 6), controlsY - 34, dotWidth, 5)
-		end
-
-		if width < 480 then
-			local buttonWidth = (width - 76) / 3
-			Kit.place(tutorialSkip, 30, controlsY, buttonWidth, 42)
-			Kit.place(tutorialBack, 38 + buttonWidth, controlsY, buttonWidth, 42)
-			Kit.place(tutorialNext, 46 + buttonWidth * 2, controlsY, buttonWidth, 42)
-		else
-			Kit.place(tutorialSkip, 30, controlsY, 120, 42)
-			Kit.place(tutorialBack, width - 250, controlsY, 100, 42)
-			Kit.place(tutorialNext, width - 138, controlsY, 108, 42)
-		end
-
-		tutorialLabels()
-	end
-end
+Shared.fn.showTutorial = showTutorial
 
 local fit
 
@@ -1663,77 +1193,117 @@ do
 
 		local compact = size.X < 1000
 		local short = size.Y < 820
-		local railWidth = if compact then 64 else 208
+		-- Bottom tab bar replaces the old left sidebar rail — `rail` is the
+		-- same Frame/instances as before (sliding navIndicator, nav[key]
+		-- bookkeeping, switchPage's active-state tinting all untouched),
+		-- just laid out horizontally along the bottom edge instead of
+		-- vertically along the left edge. barHeight is the one new term
+		-- subtracted from body's height below; no page file needs to know
+		-- the bar exists, since pages just fill body's Size as before.
+		local barHeight = 72
 		local gutter = if size.X < 550 then 12 else 28
-		local width = math.max(220, size.X - railWidth - gutter * 2)
-		local showIdentity = not compact and not short
-		-- rail's own local coordinate space is only this tall (rail's
-		-- Size.Y is shrunk by topInset below) — every rail child positioned
-		-- relative to the rail's height must use this, not raw size.Y, or
-		-- it ends up placed past rail's actual bottom edge once topInset
-		-- is nonzero (topbar visible / device notch).
-		local railLocalHeight = size.Y - topInset
+		local width = math.max(220, size.X - gutter * 2)
+		-- Identity block (avatar/username/role) doesn't fit a compact
+		-- horizontal bar — hidden entirely rather than squeezed in.
+		local showIdentity = false
 
-		Kit.place(rail, 0, topInset, railWidth, railLocalHeight)
-		Kit.place(wordmark, if compact then 15 else 24, 48, if compact then 42 else 160, 40)
-		wordmark.Text = if compact then "D//" else "DECK//"
-		edition.Visible = not compact
-		Kit.place(edition, 24, 90, 160, 20)
+		Kit.place(rail, 0, size.Y - barHeight, size.X, barHeight)
+		wordmark.Visible = false
+		edition.Visible = false
+		railLed.Visible = false
 
+		local navStep = if compact then 68 else 84
+		local navHeight = barHeight - 12
 		Kit.place(
 			navScroll,
-			if compact then 5 else 12,
-			138,
-			railWidth - (if compact then 10 else 24),
-			math.max(80, railLocalHeight - (if showIdentity then 228 else 150))
+			0, 6,
+			size.X,
+			navHeight
 		)
+		navScroll.CanvasSize = UDim2.fromOffset(#definitions * navStep, 0)
 
-		-- navHeight's `short` branch used to be 40px, below the 44px
-		-- minimum touch-target guideline (compact's 52 and the default 46
-		-- both already clear it). navStep's short branch is bumped to
-		-- match so rows don't start overlapping now that navHeight grew.
-		-- Rows are a bit taller and more spaced than before, and now sit
-		-- inside a rounded pill (Kit.radius.control) that goes solid
-		-- accent-filled when active, instead of a thin left-edge bar.
-		local navStep = if compact then 58 elseif short then 50 else 54
-		local navHeight = if compact then 52 elseif short then 44 else 46
-		navScroll.CanvasSize = UDim2.fromOffset(0, #definitions * navStep)
+		local activeIndex = table.find(pageOrder, selected) or 1
+		navIndicator.Size = UDim2.fromOffset(navStep - 8, navHeight - 4)
+		navIndicator.Position = UDim2.fromOffset((activeIndex - 1) * navStep + 4, 2)
 
 		for index, definition in ipairs(definitions) do
 			local key = definition[1]
 			local item = nav[key]
 
-			Kit.place(item.button, 4, (index - 1) * navStep, railWidth - (if compact then 18 else 36), navHeight)
+			Kit.place(item.button, (index - 1) * navStep + 4, 2, navStep - 8, navHeight - 4)
 
-			item.caption.Text = if compact then compactNames[key] else definition[2]
-			item.caption.TextSize = if compact then 9 else 13
-			item.caption.TextXAlignment = if compact then Enum.TextXAlignment.Center else Enum.TextXAlignment.Left
-			item.caption.Position = if compact then UDim2.fromOffset(0, 30) else UDim2.fromOffset(50, 0)
-			item.caption.Size = if compact then UDim2.new(1, 0, 0, 18) else UDim2.new(1, -54, 1, 0)
-			item.icon.Position = UDim2.fromOffset(16, if compact then 5 else 12)
+			item.caption.Text = compactNames[key] or definition[2]
+			item.caption.TextSize = 9
+			item.caption.TextXAlignment = Enum.TextXAlignment.Center
+			item.caption.Position = UDim2.fromOffset(0, navHeight - 22)
+			item.caption.Size = UDim2.new(1, 0, 0, 16)
+			item.icon.Position = UDim2.new(0.5, -11, 0, 6)
 		end
-
-		-- avatar/username/role are children of `rail`, positioned in its
-		-- local space via railLocalHeight (declared above) rather than raw
-		-- size.Y, for the same reason navScroll's height calc needs it.
-		Kit.place(avatar, if compact then 15 else 20, railLocalHeight - 64, 34, 34)
-		Kit.place(username, 66, railLocalHeight - 68, 130, 24)
-		Kit.place(role, 66, railLocalHeight - 43, 130, 20)
 
 		avatar.Visible = showIdentity
 		username.Visible = showIdentity
 		role.Visible = showIdentity
 
-		Kit.place(header, railWidth + gutter, 24 + topInset, width, 68)
-		Kit.place(crumb, 0, 22, math.max(1, width - 390), 22)
-		crumb.Visible = width > 650
+		Kit.place(header, gutter, 24 + topInset, width, 68)
 
-		Kit.place(balance, math.max(0, width - 220), 8, math.min(width, 220), 28)
-		Kit.place(telemetry, math.max(0, width - 250), 37, math.min(width, 250), 20)
+		local showCrumb = width > 580
+		crumb.Visible = showCrumb
+		local crumbWidth = if width > 750 then 220 else 140
+		if showCrumb then
+			Kit.place(crumb, 0, 22, crumbWidth, 22)
+		end
 
-		Kit.place(body, railWidth + gutter, 93 + topInset, width, math.max(1, size.Y - 93 - topInset))
+		-- Capsules fitting
+		local showAllCapsules = width >= 860
+		local showMidCapsules = width >= 660
 
-		fitToasts(size, topInset)
+		dataCapsule.Visible = showAllCapsules
+		energyCapsule.Visible = showAllCapsules
+		telemetryCapsule.Visible = showMidCapsules
+
+		local curX = width
+		if showMidCapsules then
+			curX -= 130
+			Kit.place(telemetryCapsule, curX, 16, 130, 34)
+			curX -= 8
+		end
+		if showAllCapsules then
+			curX -= 80
+			Kit.place(dataCapsule, curX, 16, 80, 34)
+			curX -= 8
+
+			curX -= 90
+			Kit.place(energyCapsule, curX, 16, 90, 34)
+			curX -= 8
+		end
+		local computeW = math.clamp(curX - (if showCrumb then crumbWidth + 50 else 44), 110, 180)
+		curX -= computeW
+		Kit.place(computeCapsule, curX, 16, computeW, 34)
+		rateBadge.Visible = computeW > 140
+
+		-- Search placement between crumb and computeCapsule
+		local searchLeft = if showCrumb then crumbWidth + 12 else 0
+		local searchAvail = curX - searchLeft - 10
+		local searchWide = searchAvail > 140
+		local searchWidth = if searchWide then math.min(180, searchAvail) else 36
+		if searchAvail > 36 then
+			globalSearch.fit(searchLeft, 16, searchWidth, searchWide)
+		else
+			globalSearch.fit(0, 16, 0, false)
+		end
+
+		local bannerHeight = if overclockBanner.Visible then 34 else 0
+		if overclockBanner.Visible then
+			Kit.place(overclockBanner, gutter, 93 + topInset, width, 28)
+		end
+
+		-- barHeight subtracted here (the one new term the bottom bar adds)
+		-- so page content never sits under the bar — pages themselves fill
+		-- body's Size exactly as before and need no bar-awareness of their
+		-- own.
+		Kit.place(body, gutter, 93 + topInset, width, math.max(1, size.Y - 93 - topInset - bannerHeight - barHeight))
+
+		fitToasts(size, topInset, barHeight)
 
 		if lastWidth ~= width then
 			lastWidth = width
@@ -1762,7 +1332,7 @@ local function finishLoading()
 	defer(0.46, function()
 		loading:Destroy()
 
-		if not tutorialStarted and state and not state.tutorialComplete then
+		if not tutorial.started and state and not state.tutorialComplete then
 			showTutorial(state.tutorialStep or 1)
 		end
 	end)
@@ -1791,6 +1361,12 @@ apply = function(s)
 				preferences[key] = deepCopy(value)
 			end
 		end
+		-- accentTheme lives on s.accentTheme directly (not s.settings),
+		-- matching how state.accentTheme is validated separately in
+		-- StateService.luau from the generic boolean/number settings loop.
+		if type(s.accentTheme) == "string" then
+			preferences.accentTheme = s.accentTheme
+		end
 
 		refreshPresentation()
 		for _, callback in ipairs(settingRefresh) do
@@ -1801,7 +1377,30 @@ apply = function(s)
 		defer(math.max(0, 1.1 - (os.clock() - loadingStarted)), finishLoading)
 	end
 
-	Kit.setValue(balance, fmt(s.compute) .. " compute", bumpPeak(1.035))
+	Kit.tickValue(balance, s.compute, fmt, "smooth", bumpPeak(1.035))
+	rateBadge.Text = "+" .. fmt(s.rate or 0) .. "/s"
+	energyVal.Text = string.format("%d/%d", math.floor(s.energy or 0), math.floor(s.energyCapacity or 100))
+	dataVal.Text = fmt(s.data or 0)
+
+	local now = workspace:GetServerTimeNow()
+	local boostActive = (s.boostUntil or 0) > now
+	if boostActive then
+		local rem = math.ceil((s.boostUntil or 0) - now)
+		bannerLabel.Text = string.format("⚡ Overclock Active — Fleet Output 2.0x (%ds)", rem)
+		if not overclockBanner.Visible then
+			overclockBanner.Visible = true
+			Kit.glowPulse(overclockBanner, C.overclock, 1.2)
+			fit()
+		end
+	elseif overclockBanner.Visible then
+		overclockBanner.Visible = false
+		fit()
+	end
+
+	local displayName = if s.callsign and s.callsign ~= "" then s.callsign else player.DisplayName
+	if username.Text ~= displayName then
+		username.Text = displayName
+	end
 
 	for _, callback in ipairs(updates[selected]) do
 		callback(s)
@@ -1823,7 +1422,7 @@ do
 		end
 
 		local text = string.format(
-			"FPS %d   ·   PING %s",
+			"%d FPS · %s",
 			math.floor(frames / elapsed + 0.5),
 			if ping then ping .. "ms" else "—"
 		)
@@ -1832,6 +1431,16 @@ do
 		if text ~= telemetryText then
 			telemetryText = text
 			telemetry.Text = text
+			local pingNum = ping or 999
+			local dotColor = if pingNum < 80 then (C.accent or Color3.fromRGB(56, 139, 253))
+				elseif pingNum < 200 then (C.warning or Color3.fromRGB(245, 158, 11))
+				else (C.danger or C.error or Color3.fromRGB(239, 68, 68))
+			local dotChild = teleDot:FindFirstChild("Dot")
+			if dotChild then
+				dotChild.BackgroundColor3 = dotColor
+			else
+				teleDot.BackgroundColor3 = dotColor
+			end
 		end
 	end)
 

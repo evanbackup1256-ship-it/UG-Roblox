@@ -1,52 +1,82 @@
+--!strict
 local InterfaceShared = require(script.Parent.InterfaceShared)
+local Fuzzy = require(script.Parent.Fuzzy)
 
 local InterfacePageModules = {}
 
 function InterfacePageModules.build(Shared: InterfaceShared.Shared)
-	local Kit, C, Config = Shared.Kit, Shared.C, Shared.Config
-	local positionText, liven, bump = Shared.positionText, Shared.liven, Shared.bump
-	local bind, layoutPage, relayout = Shared.bind, Shared.layoutPage, Shared.relayout
+	local Kit = Shared.Kit
+	local C = Shared.C
+	local Config = Shared.Config
+	local positionText = Shared.positionText
+	local liven = Shared.liven
+	local bump = Shared.bump
+	local bind = Shared.bind
+	local layoutPage = Shared.layoutPage
+	local relayout = Shared.relayout
+	local connect = Shared.connect
 	local fmt = Shared.fmt
 
-	local modulePage = 1
+	local pageRoot = Shared.pages.modules
+	local pageIndex = 1
+	local query = ""
 
-	local effectNames = {
-		production = "AUTOMATED OUTPUT",
-		job = "ACTIVE JOB PAYOUT",
-		energy = "ENERGY CAPACITY",
-		success = "OPERATION RELIABILITY",
-		operation = "OPERATION PAYOUT",
-		reputation = "REPUTATION GAIN",
-		recovery = "ENERGY RECOVERY",
-		data = "DATA EXTRACTION",
-		hardware = "HARDWARE DISCOUNT",
+	local searchInput = Kit.input(pageRoot, "ModuleSearch", "Search firmware modules…")
+
+	local effectDisplayNames = {
+		production = "Automated Fleet Output",
+		job = "Manual Workstation Payout",
+		energy = "Energy Grid Capacity",
+		success = "Mission Success Probability",
+		operation = "Mission Operation Payout",
+		reputation = "Prestige Token Yield",
+		recovery = "Energy Recovery Rate",
+		data = "Field Data Extraction",
+		hardware = "Hardware Purchase Discount",
 	}
 
-	local GENERATION_NAMES = { "CORE", "ARRAY", "NEXUS" }
+	local GENERATION_NAMES = { "Core Series", "Array Series", "Nexus Series" }
 
 	local moduleCards = {}
 	for index, module in ipairs(Config.Modules) do
-		local card = Kit.card(Shared.pages.modules, "Module_" .. module.key, 236)
+		local card = Kit.interactiveCard(pageRoot, "Module_" .. module.key, 230, C.panel)
 
-		local generation = math.min(3, (index - 1) // 12 + 1)
-		local color = if generation == 1 then C.accent elseif generation == 2 then C.accent2 else C.warning
+		local genIdx = math.clamp((index - 1) // 12 + 1, 1, 3)
+		local genColor = if genIdx == 1 then C.accent elseif genIdx == 2 then C.data else C.energy
+		local genBadgeStyle = if genIdx == 1 then "accent" elseif genIdx == 2 then "data" else "warning"
 
-		positionText(card, "Generation", GENERATION_NAMES[generation], 20, 17, 90, 20, 9, color, true)
+		local genBadge = Kit.badge(card, GENERATION_NAMES[genIdx], genBadgeStyle, true)
+		Kit.place(genBadge, 20, 16, 90, 20)
 
-		local level = positionText(card, "Level", "LEVEL 0 / 5", 116, 17, 180, 20, 9, C.muted, true)
+		local status = Kit.statusDot(card, C.muted, "Idle", 6)
+		Kit.place(status, 118, 23, 6, 6)
+
+		local level = positionText(card, "Level", "Tier 0 / 5", 140, 16, 180, 20, 11, C.muted, true)
+		level.Font = Enum.Font.RobotoMono
 		level.TextXAlignment = Enum.TextXAlignment.Right
 
-		local title = positionText(card, "Title", module.name, 20, 45, 330, 30, 17, C.text, true)
+		local title = positionText(card, "Title", module.name, 20, 44, 330, 26, 16, C.text, true)
 		title.TextWrapped = true
 
-		local detail = positionText(card, "Detail", module.subtitle, 20, 79, 330, 38, 12, C.muted)
+		local detail = positionText(card, "Detail", module.subtitle, 20, 72, 330, 32, 12, C.textSub)
 		detail.TextWrapped = true
 
-		local effect = positionText(card, "Effect", effectNames[module.effect] or string.upper(module.effect), 20, 122, 330, 20, 10, color, true)
+		local effectName = effectDisplayNames[module.effect] or string.upper(module.effect)
+		local effect = positionText(card, "Effect", effectName, 20, 112, 330, 20, 11, genColor, true)
+		effect.Font = Enum.Font.RobotoMono
 
-		local progress, fill = Kit.progress(card, "Calibration")
+		local progressBar = Kit.progressBar(card, "CalibrationBar", 6, genColor)
 
-		local calibrate = liven(Kit.button(card, "Calibrate", "Connecting…", function()
+		local calibrateBtn = liven(Kit.button(card, "Calibrate", "Connecting…", function()
+			if Shared.state then
+				local curLvl = Shared.state.modules[module.key] or 0
+				if curLvl + 1 >= module.max then
+					Kit.fanfare(card, genColor)
+					Kit.floatText(card, "Max Level Reached", genColor, Vector2.new(0.5, 0.45))
+				else
+					Kit.floatText(card, "+1 " .. module.name, genColor, Vector2.new(0.5, 0.45))
+				end
+			end
 			Shared.fn.act("module", module.key)
 		end, "primary"))
 
@@ -57,55 +87,61 @@ function InterfacePageModules.build(Shared: InterfaceShared.Shared)
 			detail = detail,
 			level = level,
 			effect = effect,
-			progress = progress,
-			fill = fill,
-			fraction = -1,
+			progressBar = progressBar,
+			status = status,
+			calibrateBtn = calibrateBtn,
+			genColor = genColor,
 			bumpLevel = bump(level),
-			calibrate = calibrate,
+			searchString = string.lower(module.name .. " " .. (module.subtitle or "")),
 		}
 	end
 
-	local placeModulePager = Shared.pager(Shared.pages.modules, function()
-		modulePage = math.max(1, modulePage - 1)
+	local emptyLabel = positionText(pageRoot, "Empty", "No firmware modules match your search.", 0, 0, 600, 44, 14, C.muted)
+	emptyLabel.TextWrapped = true
+	emptyLabel.Visible = false
+
+	local placePager = Shared.pager(pageRoot, function()
+		pageIndex = math.max(1, pageIndex - 1)
 		relayout("modules")
 		Shared.fn.revealPageChange("modules")
 	end, function()
-		modulePage += 1
+		pageIndex += 1
 		relayout("modules")
 		Shared.fn.revealPageChange("modules")
 	end)
 
+	connect(searchInput:GetPropertyChangedSignal("Text"), function()
+		local clean = string.lower(searchInput.Text)
+		if clean == query then return end
+		query = clean
+		pageIndex = 1
+		relayout("modules")
+	end)
+
+	-- =========================================================================
+	-- STATE BINDING
+	-- =========================================================================
 	bind("modules", function(s)
-		local playerLevel = s.level or 1
+		local moduleLevels = s.modules or {}
 		local compute = s.compute or 0
 		local data = s.data or 0
 
-		for _, item in ipairs(moduleCards) do
-			local module = item.module
-			local level = s.modules[module.key] or 0
-			local computeCost, dataCost = Config.moduleCost(module, level)
-			local unlocked = playerLevel >= module.unlock
-			local fraction = level / module.max
+		for _, mc in ipairs(moduleCards) do
+			local curLevel = moduleLevels[mc.module.key] or 0
+			local isMax = curLevel >= mc.module.max
+			local progressRatio = math.clamp(curLevel / mc.module.max, 0, 1)
 
-			item.level.Text = string.format("LEVEL %d / %d", level, module.max)
+			local computeCost = Config.moduleComputeCost(mc.module, curLevel, s)
+			local dataCost = Config.moduleDataCost(mc.module, curLevel, s)
 
-			if fraction ~= item.fraction then
-				local first = item.fraction == -1
-				item.fraction = fraction
-				Kit.animate(item.fill, { Size = UDim2.fromScale(fraction, 1) }, 0.24)
-				if not first then
-					item.bumpLevel()
-				end
-			end
-
-			Kit.lock(item.card, not unlocked, item.calibrate)
+			mc.level.Text = string.format("Tier %d / %d", curLevel, mc.module.max)
+			mc.progressBar:SetProgress(progressRatio, true)
+			mc.status.Dot.BackgroundColor3 = if isMax then C.gold elseif curLevel > 0 then mc.genColor else C.muted
 
 			Kit.enable(
-				item.calibrate,
-				unlocked and level < module.max and compute >= computeCost and data >= dataCost,
-				if level >= module.max then "Fully calibrated"
-					elseif not unlocked then "Unlocks at level " .. module.unlock
-					else string.format("Calibrate · %s C · %s D", fmt(computeCost), fmt(dataCost)),
+				mc.calibrateBtn,
+				not isMax and compute >= computeCost and data >= dataCost,
+				if isMax then "Max Calibrated" else "Calibrate · " .. fmt(computeCost) .. "C " .. fmt(dataCost) .. "D",
 				true
 			)
 		end
@@ -113,49 +149,75 @@ function InterfacePageModules.build(Shared: InterfaceShared.Shared)
 		relayout("modules")
 	end)
 
+	-- =========================================================================
+	-- RESPONSIVE LAYOUT
+	-- =========================================================================
 	layoutPage("modules", function(w)
-		local columns = if w >= 980 then 3 elseif w >= 650 then 2 else 1
-		local cw = (w - (columns - 1) * 16) / columns
-		local pageSize = columns * 3
-		local totalPages = math.max(1, math.ceil(#moduleCards / pageSize))
+		Kit.place(searchInput, 0, 137, w, 40)
 
-		modulePage = math.clamp(modulePage, 1, totalPages)
-		local first = (modulePage - 1) * pageSize + 1
-		local last = math.min(#moduleCards, first + pageSize - 1)
-
-		for index, item in ipairs(moduleCards) do
-			item.card.Visible = index >= first and index <= last
+		local matchedCards = {}
+		for _, mc in ipairs(moduleCards) do
+			if query == "" or Fuzzy.score(query, mc.searchString) > 0 then
+				table.insert(matchedCards, mc)
+			end
 		end
 
-		local shown = 0
-		for index = first, last do
-			local item = moduleCards[index]
-
-			Kit.place(
-				item.card,
-				(shown % columns) * (cw + 16),
-				137 + (shown // columns) * 252,
-				cw,
-				236
-			)
-
-			item.level.Position = UDim2.fromOffset(math.max(112, cw - 188), 17)
-			item.level.Size = UDim2.fromOffset(math.min(168, cw - 112), 20)
-			item.title.Size = UDim2.fromOffset(cw - 40, 30)
-			item.detail.Size = UDim2.fromOffset(cw - 40, 38)
-			item.effect.Size = UDim2.fromOffset(cw - 40, 20)
-			item.effect.TextSize = if cw < 280 then 9 else 10
-
-			Kit.place(item.progress, 20, 154, cw - 40, 4)
-			Kit.place(item.calibrate, 20, 176, cw - 40, 44)
-
-			shown += 1
+		for _, mc in ipairs(moduleCards) do
+			mc.card.Visible = false
 		end
 
-		local footerY = 149 + math.ceil(shown / columns) * 252
-		placeModulePager(w, footerY, modulePage, totalPages, #moduleCards, "MODULES")
+		local gridStartY = 189
 
-		return footerY + 54
+		if #matchedCards == 0 then
+			emptyLabel.Visible = true
+			Kit.place(emptyLabel, 0, gridStartY + 40, w, 44)
+			return gridStartY + 120
+		else
+			emptyLabel.Visible = false
+		end
+
+		local columns = math.clamp((w + 16) // 320, 1, 3)
+		local cardWidth = (w - (columns - 1) * 16) / columns
+		local cardHeight = 230
+
+		local perPage = columns * 4
+		local totalPages = math.max(1, math.ceil(#matchedCards / perPage))
+		pageIndex = math.clamp(pageIndex, 1, totalPages)
+
+		local pageStart = (pageIndex - 1) * perPage + 1
+		local pageEnd = math.min(#matchedCards, pageIndex * perPage)
+		local visibleCount = pageEnd - pageStart + 1
+
+		for idx = pageStart, pageEnd do
+			local mc = matchedCards[idx]
+			local localIdx = idx - pageStart
+			local col = localIdx % columns
+			local row = localIdx // columns
+
+			local cardX = col * (cardWidth + 16)
+			local cardY = gridStartY + row * (cardHeight + 16)
+
+			mc.card.Visible = true
+			Kit.place(mc.card, cardX, cardY, cardWidth, cardHeight)
+
+			mc.title.Size = UDim2.fromOffset(cardWidth - 40, 26)
+			mc.detail.Size = UDim2.fromOffset(cardWidth - 40, 32)
+			mc.level.Position = UDim2.fromOffset(cardWidth - 160, 16)
+			mc.level.Size = UDim2.fromOffset(140, 20)
+
+			Kit.place(mc.progressBar.instance, 20, 138, cardWidth - 40, 6)
+			Kit.place(mc.calibrateBtn, 20, 158, cardWidth - 40, 40)
+		end
+
+		local totalRows = math.ceil(visibleCount / columns)
+		local endY = gridStartY + totalRows * (cardHeight + 16)
+
+		if totalPages > 1 then
+			placePager(w, endY + 8, pageIndex, totalPages, #matchedCards, "modules")
+			return endY + 68
+		end
+
+		return endY + 16
 	end)
 end
 

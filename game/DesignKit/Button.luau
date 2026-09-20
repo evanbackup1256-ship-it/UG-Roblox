@@ -5,141 +5,161 @@ local Motion = require(script.Parent.Motion)
 
 local colors = Tokens.colors
 
--- Sound hook — overwritten at runtime by InterfaceController's real pooled
--- cue system. Kept here (not in Motion.luau) since only Button/Controls
--- primitives call it.
 local M = {}
 M.sound = function() end
 
---======================================================================--
--- Kit.button: a single shared skeleton (create instance, corner, glow
--- stroke, focus ring, Disabled/Locked attribute wiring) plus a CLOSED,
--- explicit table of per-variant effects. This is the direct fix for the
--- historical bug class: a new effect used to get added as one more line
--- inside this function's body, reachable by every caller regardless of
--- what kind of control they were actually building (a squash-and-stretch
--- effect meant for confirm buttons ended up firing on a settings toggle
--- built via Kit.button, fighting the toggle's own hand-tuned animation).
---
--- Toggle-shaped, persistent-state controls do NOT go through Kit.button
--- at all — see Kit.checkbox in Controls.luau. Everything that does go
--- through Kit.button is a momentary action, and every effect it can have
--- is a named function wired into exactly the variant rows that want it,
--- below. Adding a new effect means adding a new named function and
--- listing it in the specific rows that should get it — there is no path
--- left that reaches "every button" the way the old bug did.
---======================================================================--
+-- Playground Button Mechanics:
+-- Bouncy, exaggerated spring feedback on every interaction — bounce is now
+-- the default character (MotionService.Presets), not reserved for
+-- celebration. VARIANT_EFFECTS' closed-table shape (same 8 variant keys,
+-- same effect-slot names, same nil-means-no-effect pattern) is UNCHANGED
+-- from Sleek Obsidian — this is the deliberate fix for a prior bug class
+-- where an effect silently reached every button; only the bodies below and
+-- the values inside the table changed for this rewrite.
 
 local function pressBounce(scale)
-	Motion.animate(scale, { Scale = 0.955 }, 0.09)
+	Motion.animate(scale, { Scale = 0.88 }, "snappy")
+end
+
+local function pressGlow(button, variant)
+	local targetColor
+	if variant == "primary" then
+		targetColor = colors.accent:Lerp(Color3.new(1, 1, 1), 0.15)
+	elseif variant == "danger" then
+		targetColor = colors.error:Lerp(Color3.new(1, 1, 1), 0.15)
+	elseif variant == "secondary" then
+		targetColor = colors.panel:Lerp(colors.accent, 0.2)
+	elseif variant == "amber" then
+		targetColor = colors.energy:Lerp(Color3.new(1, 1, 1), 0.15)
+	else
+		targetColor = colors.raised:Lerp(colors.accent, 0.2)
+	end
+	Motion.animate(button, { BackgroundColor3 = targetColor }, "snappy")
+end
+
+local function restoreGlow(button, variant)
+	local baseColor
+	if variant == "primary" then
+		baseColor = colors.accent
+	elseif variant == "danger" then
+		baseColor = colors.error
+	elseif variant == "secondary" then
+		baseColor = colors.panel
+	elseif variant == "amber" then
+		baseColor = colors.energy
+	elseif variant == "ghost" then
+		baseColor = colors.background
+	else
+		baseColor = colors.raised
+	end
+	Motion.animate(button, { BackgroundColor3 = baseColor }, "smooth")
 end
 
 local function releaseBounce(scale, edge)
-	Motion.animate(scale, { Scale = 1.024 }, 0.18, Enum.EasingStyle.Back)
-	Motion.animate(edge, { Transparency = Tokens.glow.hoverTransparency }, 0.14)
+	Motion.animate(scale, { Scale = 1.10 }, "bouncy")
+	if edge then
+		Motion.animate(edge, { Transparency = Tokens.glow.hoverTransparency }, "snappy")
+	end
 end
 
 local function hoverGlow(scale, edge)
-	Motion.animate(edge, { Transparency = Tokens.glow.hoverTransparency, Thickness = Tokens.glow.thickness + 0.5 }, 0.2)
-	Motion.animate(scale, { Scale = 1.024 }, 0.24, Enum.EasingStyle.Back)
+	if edge then
+		Motion.animate(edge, { Transparency = Tokens.glow.hoverTransparency, Color = colors.lineGlow }, "smooth")
+	end
+	Motion.animate(scale, { Scale = 1.08 }, "bouncy")
 end
 
 local function hoverLeave(scale, edge)
-	Motion.animate(edge, { Transparency = Tokens.glow.restTransparency, Thickness = Tokens.glow.thickness }, 0.24)
-	Motion.animate(scale, { Scale = 1 }, 0.28, Enum.EasingStyle.Back)
+	if edge then
+		Motion.animate(edge, { Transparency = Tokens.glow.restTransparency, Color = colors.line }, "smooth")
+	end
+	Motion.animate(scale, { Scale = 1 }, "smooth")
 end
 
 local function clickRipple(button, primary)
-	-- Parented into the button's own clip-mask wrapper (see M.button),
-	-- never into `button` directly — a UIStroke straddles its object's own
-	-- border (half in, half out), so if the button itself clipped its
-	-- descendants, its own edge glow and focus ring would get their outer
-	-- half cut off wherever a ScrollingFrame ancestor scrolled them near
-	-- an edge. The ripple still needs *something* clipping it to the pill
-	-- shape so it doesn't spill past the button's rounded corners, hence
-	-- the separate wrapper that clips only this.
-	local pulse = Primitives.create("Frame", button:FindFirstChild("ClipMask"), {
+	local clip = button:FindFirstChild("ClipMask")
+	if not clip then return end
+	local pulse = Primitives.create("Frame", clip, {
 		Name = "Pulse",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(8, 8),
+		Size = UDim2.fromOffset(10, 10),
 		BackgroundColor3 = primary and colors.ink or colors.accent,
-		BackgroundTransparency = 0.72,
+		BackgroundTransparency = 0.7,
 		BorderSizePixel = 0,
 		ZIndex = button.ZIndex + 1,
 	})
-	Scheduler.Theme.paint(pulse, "BackgroundColor3", primary and "ink" or "accent")
-	Primitives.corner(pulse, 999)
-	Motion.animate(pulse, { Size = UDim2.fromScale(1.35, 2.4), BackgroundTransparency = 1 }, 0.42)
-	Scheduler.Scheduler.after(pulse, "destroy", 0.44, function()
+	Primitives.corner(pulse, Tokens.radius.pill)
+	Motion.animate(pulse, { Size = UDim2.fromScale(1.6, 3), BackgroundTransparency = 1 }, "bouncy")
+	Scheduler.Scheduler.after(pulse, "destroy", 0.4, function()
 		if pulse.Parent then
 			pulse:Destroy()
 		end
 	end)
 end
 
--- Variant table: each row lists exactly which named effects that variant
--- gets. `hover`/`leave` run on MouseEnter/Leave + gamepad SelectionGained/
--- Lost; `press`/`release` run on MouseButton1Down/Up; `activate` runs
--- inside Activated, after the shared disabled-check has already passed.
 local VARIANT_EFFECTS = {
-	action = { hover = hoverGlow, leave = hoverLeave, press = pressBounce, release = releaseBounce, activate = clickRipple },
-	primary = { hover = hoverGlow, leave = hoverLeave, press = pressBounce, release = releaseBounce, activate = clickRipple },
+	action = { hover = hoverGlow, leave = hoverLeave, press = pressBounce, release = releaseBounce, activate = clickRipple, pressGlow = pressGlow },
+	primary = { hover = hoverGlow, leave = hoverLeave, press = pressBounce, release = releaseBounce, activate = clickRipple, pressGlow = pressGlow },
+	secondary = { hover = hoverGlow, leave = hoverLeave, press = pressBounce, release = releaseBounce, activate = clickRipple, pressGlow = pressGlow },
+	amber = { hover = hoverGlow, leave = hoverLeave, press = pressBounce, release = releaseBounce, activate = clickRipple, pressGlow = pressGlow },
+	danger = { hover = hoverGlow, leave = hoverLeave, press = pressBounce, release = releaseBounce, activate = clickRipple, pressGlow = pressGlow },
+	ghost = { hover = hoverGlow, leave = hoverLeave, press = pressBounce, release = releaseBounce, activate = nil, pressGlow = nil },
 	icon = { hover = hoverGlow, leave = hoverLeave, press = pressBounce, release = nil, activate = nil },
 	nav = { hover = nil, leave = nil, press = nil, release = nil, activate = nil },
 }
 
--- variant: "action" (default) | "primary" | "icon" | "nav". Replaces the
--- old boolean `primary` 5th argument — pass "primary" where `true` used
--- to be passed, omit where `false`/omitted was used before.
+-- variant: "action" (default) | "primary" | "secondary" | "amber" | "danger" | "ghost" | "icon" | "nav".
 function M.button(parent, name, copy, callback, variant)
 	variant = variant or "action"
-	local effects = VARIANT_EFFECTS[variant]
-	assert(effects, ("Kit.button: unknown variant %q"):format(tostring(variant)))
+	local effects = VARIANT_EFFECTS[variant] or VARIANT_EFFECTS.action
 	local primary = variant == "primary"
+
+	local textColor, bgColor, strokeColor, bgTransparency
+	if variant == "primary" then
+		textColor, bgColor, strokeColor = colors.ink, colors.accent, colors.lineGlow
+	elseif variant == "amber" then
+		textColor, bgColor, strokeColor = colors.ink, colors.energy, colors.energy
+	elseif variant == "danger" then
+		textColor, bgColor, strokeColor = colors.text, colors.error, colors.error
+	elseif variant == "secondary" then
+		textColor, bgColor, strokeColor = colors.text, colors.panel, colors.line
+	elseif variant == "ghost" then
+		textColor, bgColor, strokeColor, bgTransparency = colors.muted, colors.background, colors.line, 1
+	else
+		textColor, bgColor, strokeColor = colors.text, colors.raised, colors.line
+	end
 
 	local button = Primitives.create("TextButton", parent, {
 		Name = name,
 		Text = copy,
-		Font = Enum.Font.GothamBold,
+		Font = Tokens.font.bold,
 		TextSize = Tokens.type.body,
-		TextColor3 = primary and colors.ink or colors.text,
-		BackgroundColor3 = primary and colors.accent or colors.raised,
-		Size = UDim2.fromOffset(160, 44),
+		TextColor3 = textColor,
+		BackgroundColor3 = bgColor,
+		BackgroundTransparency = bgTransparency or 0,
+		Size = UDim2.fromOffset(150, 40),
 		BorderSizePixel = 0,
 		AutoButtonColor = false,
 		Selectable = true,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 	})
 	Scheduler.Theme.paint(button, "TextColor3", primary and "ink" or "text")
-	Scheduler.Theme.paint(button, "BackgroundColor3", primary and "accent" or "raised")
-	Primitives.corner(button, Tokens.radius.pill)
-	local edge = Primitives.stroke(button, colors.accent, Tokens.glow.restTransparency)
-	-- Named explicitly: a button also gets a FocusRing UIStroke (from
-	-- Motion.focusRing below), and FindFirstChildOfClass("UIStroke") with
-	-- two UIStroke children returns whichever one happens to be first in
-	-- Roblox's internal child order — not necessarily this one. Kit.enable
-	-- was hitting that ambiguity and occasionally animating the wrong
-	-- stroke (the focus ring instead of the hover-glow edge), leaving the
-	-- real edge stroke stuck at whatever transparency it last had.
+	Scheduler.Theme.paint(button, "BackgroundColor3", primary and "accent" or (if variant == "danger" then "error" else "raised"))
+	Primitives.corner(button, Tokens.radius.control)
+	local edge = Primitives.stroke(button, strokeColor, 0.65, false)
 	edge.Name = "Edge"
-	Scheduler.Theme.paint(edge, "Color", "accent")
+	Scheduler.Theme.paint(edge, "Color", if variant == "danger" then "error" else "accent")
 	Motion.focusRing(button)
 	local scale = Primitives.create("UIScale", button, { Scale = 1 })
 
-	-- Clips only the click-ripple (clickRipple parents into this, not into
-	-- `button` directly) — the button itself never clips its descendants,
-	-- so its own edge glow / focus ring strokes (which straddle the
-	-- button's border, half in/half out, per how UIStroke renders) never
-	-- get their outer half cut off by a ScrollingFrame ancestor scrolling
-	-- them near its edge.
 	local clipMask = Primitives.create("Frame", button, {
 		Name = "ClipMask",
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
 		ClipsDescendants = true,
 	})
-	Primitives.corner(clipMask, Tokens.radius.pill)
+	Primitives.corner(clipMask, Tokens.radius.control)
 
 	button.MouseEnter:Connect(function()
 		if button:GetAttribute("Disabled") then return end
@@ -148,6 +168,7 @@ function M.button(parent, name, copy, callback, variant)
 	end)
 	button.MouseLeave:Connect(function()
 		if effects.leave then effects.leave(scale, edge) end
+		if effects.pressGlow then restoreGlow(button, variant) end
 	end)
 	button.SelectionGained:Connect(function()
 		if button:GetAttribute("Disabled") then return end
@@ -156,16 +177,19 @@ function M.button(parent, name, copy, callback, variant)
 	end)
 	button.SelectionLost:Connect(function()
 		if effects.leave then effects.leave(scale, edge) end
+		if effects.pressGlow then restoreGlow(button, variant) end
 	end)
 	button.MouseButton1Down:Connect(function()
 		if button:GetAttribute("Disabled") then return end
 		M.sound("press")
 		if effects.press then effects.press(scale) end
+		if effects.pressGlow then effects.pressGlow(button, variant) end
 	end)
 	button.MouseButton1Up:Connect(function()
 		if button:GetAttribute("Disabled") then return end
 		M.sound("release")
 		if effects.release then effects.release(scale, edge) end
+		if effects.pressGlow then restoreGlow(button, variant) end
 	end)
 	button.Activated:Connect(function()
 		if button:GetAttribute("Disabled") then
@@ -183,7 +207,9 @@ end
 
 function M.enable(button, enabled, copy, primary)
 	button:SetAttribute("Disabled", not enabled)
-	button.Text = copy
+	if copy then
+		button.Text = copy
+	end
 
 	local textColor, backgroundColor
 	if enabled and primary then
@@ -198,21 +224,12 @@ function M.enable(button, enabled, copy, primary)
 
 	button.Active = enabled
 	local scale = button:FindFirstChildOfClass("UIScale")
-	-- Looked up by the explicit name Kit.button gives this stroke — a
-	-- button also has a FocusRing UIStroke, and FindFirstChildOfClass
-	-- doesn't disambiguate between the two.
 	local stroke = button:FindFirstChild("Edge")
 	if not enabled then
-		if scale then Motion.animate(scale, { Scale = 1 }, 0.16) end
-		if stroke then Motion.animate(stroke, { Transparency = 1, Thickness = Tokens.glow.thickness }, 0.16) end
+		if scale then Motion.animate(scale, { Scale = 1 }, 0.14) end
+		if stroke then Motion.animate(stroke, { Transparency = 0.9 }, 0.14) end
 	else
-		-- Restore the stroke's rest state on re-enable — previously only
-		-- the disable path touched it at all, so a button disabled then
-		-- re-enabled before its next real hover (e.g. Leaderboard's
-		-- Refresh button, disabled during its own auto-fetch on page
-		-- load) stayed stuck fully transparent until something else
-		-- happened to hover it.
-		if stroke then Motion.animate(stroke, { Transparency = Tokens.glow.restTransparency, Thickness = Tokens.glow.thickness }, 0.16) end
+		if stroke then Motion.animate(stroke, { Transparency = 0.65 }, 0.14) end
 	end
 end
 

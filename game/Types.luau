@@ -11,6 +11,7 @@ export type Preferences = {
     sfxVolume: number,
     musicVolume: number,
     orbitSpeed: number,
+    accentTheme: string,
 }
 
 export type DailyProgress = {
@@ -33,6 +34,7 @@ export type PlayerState = {
     boostUntil: number,
     boostReady: number,
     canSave: boolean,
+    callsign: string,
 }
 
 return nil

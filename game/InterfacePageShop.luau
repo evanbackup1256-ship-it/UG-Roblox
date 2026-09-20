@@ -1,109 +1,176 @@
+--!strict
 local InterfaceShared = require(script.Parent.InterfaceShared)
+local Fuzzy = require(script.Parent.Fuzzy)
 
 local InterfacePageShop = {}
 
 function InterfacePageShop.build(Shared: InterfaceShared.Shared)
-	local Kit, C, Config, Shop = Shared.Kit, Shared.C, Shared.Config, Shared.Shop
-	local positionText, liven = Shared.positionText, Shared.liven
-	local bind, layoutPage, relayout = Shared.bind, Shared.layoutPage, Shared.relayout
+	local Kit = Shared.Kit
+	local C = Shared.C
+	local Config = Shared.Config
+	local Shop = Shared.Shop
+	local positionText = Shared.positionText
+	local liven = Shared.liven
+	local bind = Shared.bind
+	local layoutPage = Shared.layoutPage
+	local relayout = Shared.relayout
+	local connect = Shared.connect
 	local fmt = Shared.fmt
 
-	local shopPage = 1
+	local pageRoot = Shared.pages.shop
+	local pageIndex = 1
+	local query = ""
 
-	local offers = {}
+	local searchInput = Kit.input(pageRoot, "ShopSearch", "Search hardware packages…")
+
+	local offerCards = {}
 	for i, offer in ipairs(Config.ShopOffers) do
-		local card = Kit.card(Shared.pages.shop, "Offer_" .. offer.key, 348)
+		local card = Kit.interactiveCard(pageRoot, "Offer_" .. offer.key, 330, C.panel)
 
 		local stageRoot = Kit.create("Frame", card, {
-			Name = "Preview",
+			Name = "PreviewStage",
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(0, 0),
-			Size = UDim2.new(1, 0, 0, 185),
+			Size = UDim2.new(1, 0, 0, 175),
 		})
 		Shared.director:Add(stageRoot, i, offer.color, true)
 
-		local title = positionText(card, "Title", offer.name, 20, 185, 350, 30, 20, C.text, true)
-		local detail = positionText(card, "Detail", offer.subtitle, 20, 222, 350, 34, 13, C.muted)
+		local discountPct = math.floor((offer.discount or 0.05) * 100)
+		local discountBadge = Kit.badge(card, string.format("Save %d%%", discountPct), "compute", true)
+		Kit.place(discountBadge, 18, 16, 76, 20)
+
+		local title = positionText(card, "Title", offer.name, 20, 180, 350, 26, 17, C.text, true)
+		local detail = positionText(card, "Detail", offer.subtitle, 20, 208, 350, 32, 12, C.textSub)
 		detail.TextWrapped = true
 
-		local saving = positionText(
+		local savingsLabel = positionText(
 			card,
-			"Saving",
-			string.format("%d SERVERS  /  %d%% SAVING", offer.quantity, math.floor((offer.discount or 0.05) * 100)),
-			20, 262, 300, 20, 10, C.accent, true
+			"Savings",
+			string.format("%d units · %d%% bundle savings", offer.quantity, discountPct),
+			20,
+			244,
+			300,
+			20,
+			11,
+			C.accent,
+			true
 		)
+		savingsLabel.Font = Enum.Font.RobotoMono
 
-		local buy = liven(Kit.button(card, "BuyPackage", "", function()
+		local buyBtn = liven(Kit.button(card, "BuyPackage", "Connecting…", function()
+			Kit.fanfare(card, offer.color or C.gold)
+			Kit.floatText(card, string.format("+%d UNITS", offer.quantity), offer.color or C.gold, Vector2.new(0.5, 0.45))
 			Shared.fn.act("buyPackage", offer.key)
 		end, "primary"))
 
-		offers[i] = {
+		offerCards[i] = {
 			card = card,
+			offer = offer,
 			title = title,
 			detail = detail,
-			saving = saving,
-			buy = buy,
+			savingsLabel = savingsLabel,
+			buyBtn = buyBtn,
+			searchString = string.lower(offer.name .. " " .. (offer.subtitle or "")),
 		}
 
 		bind("shop", function(s)
 			local price, reason = Shop.quote(Config, s, offer.key)
 			Kit.enable(
-				buy,
+				buyBtn,
 				price ~= nil and (s.compute or 0) >= price,
-				if price then "Deploy · " .. fmt(price) else reason,
+				if price then "Procure · " .. fmt(price) else reason,
 				true
 			)
 		end)
 	end
 
-	local placeShopPager = Shared.pager(Shared.pages.shop, function()
-		shopPage = math.max(1, shopPage - 1)
+	local emptyLabel = positionText(pageRoot, "Empty", "No procurement packages match your search.", 0, 0, 600, 44, 14, C.muted)
+	emptyLabel.TextWrapped = true
+	emptyLabel.Visible = false
+
+	local placePager = Shared.pager(pageRoot, function()
+		pageIndex = math.max(1, pageIndex - 1)
 		relayout("shop")
 		Shared.fn.revealPageChange("shop")
 	end, function()
-		shopPage += 1
+		pageIndex += 1
 		relayout("shop")
 		Shared.fn.revealPageChange("shop")
 	end)
 
+	connect(searchInput:GetPropertyChangedSignal("Text"), function()
+		local clean = string.lower(searchInput.Text)
+		if clean == query then return end
+		query = clean
+		pageIndex = 1
+		relayout("shop")
+	end)
+
+	-- =========================================================================
+	-- RESPONSIVE LAYOUT
+	-- =========================================================================
 	layoutPage("shop", function(w)
-		local columns = if w >= 950 then 3 elseif w >= 640 then 2 else 1
-		local cw = (w - (columns - 1) * 16) / columns
-		local pageSize = columns * 2
-		local totalPages = math.max(1, math.ceil(#offers / pageSize))
+		Kit.place(searchInput, 0, 137, w, 40)
 
-		shopPage = math.clamp(shopPage, 1, totalPages)
-		local first = (shopPage - 1) * pageSize + 1
-		local last = math.min(#offers, first + pageSize - 1)
-
-		for index, item in ipairs(offers) do
-			item.card.Visible = index >= first and index <= last
+		local matchedCards = {}
+		for _, item in ipairs(offerCards) do
+			if query == "" or Fuzzy.score(query, item.searchString) > 0 then
+				table.insert(matchedCards, item)
+			end
 		end
 
-		local shown = 0
-		for index = first, last do
-			local item = offers[index]
-
-			Kit.place(
-				item.card,
-				(shown % columns) * (cw + 16),
-				137 + (shown // columns) * 364,
-				cw,
-				348
-			)
-
-			item.title.Size = UDim2.fromOffset(cw - 40, 30)
-			item.detail.Size = UDim2.fromOffset(cw - 40, 34)
-			item.saving.Size = UDim2.fromOffset(cw - 40, 20)
-			Kit.place(item.buy, 20, 290, cw - 40, 44)
-
-			shown += 1
+		for _, item in ipairs(offerCards) do
+			item.card.Visible = false
 		end
 
-		local footerY = 149 + math.ceil(shown / columns) * 364
-		placeShopPager(w, footerY, shopPage, totalPages, #offers, "BUNDLES")
+		local gridStartY = 189
 
-		return footerY + 54
+		if #matchedCards == 0 then
+			emptyLabel.Visible = true
+			Kit.place(emptyLabel, 0, gridStartY + 40, w, 44)
+			return gridStartY + 120
+		else
+			emptyLabel.Visible = false
+		end
+
+		local columns = math.clamp((w + 16) // 320, 1, 3)
+		local cardWidth = (w - (columns - 1) * 16) / columns
+		local cardHeight = 330
+
+		local perPage = columns * 3
+		local totalPages = math.max(1, math.ceil(#matchedCards / perPage))
+		pageIndex = math.clamp(pageIndex, 1, totalPages)
+
+		local pageStart = (pageIndex - 1) * perPage + 1
+		local pageEnd = math.min(#matchedCards, pageIndex * perPage)
+		local visibleCount = pageEnd - pageStart + 1
+
+		for idx = pageStart, pageEnd do
+			local item = matchedCards[idx]
+			local localIdx = idx - pageStart
+			local col = localIdx % columns
+			local row = localIdx // columns
+
+			local cardX = col * (cardWidth + 16)
+			local cardY = gridStartY + row * (cardHeight + 16)
+
+			item.card.Visible = true
+			Kit.place(item.card, cardX, cardY, cardWidth, cardHeight)
+
+			item.title.Size = UDim2.fromOffset(cardWidth - 40, 26)
+			item.detail.Size = UDim2.fromOffset(cardWidth - 40, 32)
+			Kit.place(item.buyBtn, 20, 274, cardWidth - 40, 40)
+		end
+
+		local totalRows = math.ceil(visibleCount / columns)
+		local endY = gridStartY + totalRows * (cardHeight + 16)
+
+		if totalPages > 1 then
+			placePager(w, endY + 8, pageIndex, totalPages, #matchedCards, "packages")
+			return endY + 68
+		end
+
+		return endY + 16
 	end)
 end
 

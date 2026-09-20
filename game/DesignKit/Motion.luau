@@ -4,6 +4,7 @@ local Icons = require(script.Parent.Parent.Icons)
 local Tokens = require(script.Parent.Tokens)
 local Motion = require(script.Parent.Parent.MotionService)
 local SpringDriver = require(script.Parent.SpringDriver)
+local ValueTicker = require(script.Parent.ValueTicker)
 local Scheduler = require(script.Parent.Scheduler)
 local Primitives = require(script.Parent.Primitives)
 
@@ -60,6 +61,16 @@ function M.animate(object, properties, duration, style, direction)
 	end
 
 	local preset = resolvePreset(duration, style)
+	-- Scheduler.track must release whatever was PREVIOUSLY tracked under
+	-- this (object, key) BEFORE the new spring starts, not after — spr has
+	-- no per-call identity, so a stale handle's Cancel() calls
+	-- spr.stop(object) unconditionally. If that ran after SpringDriver
+	-- .animate below had already called spr.target, it would immediately
+	-- wipe the animation this very call just started, on every single call
+	-- after the first one for a given object (which is nearly every
+	-- hover/press/leave/release pair in the game, since they all animate
+	-- the same button's UIScale/UIStroke repeatedly).
+	Scheduler.Scheduler.clear(object, "animate")
 	local handle = SpringDriver.animate(object, "animate", properties, preset)
 	Scheduler.Scheduler.track(object, "animate", handle)
 	count("tweensStarted")
@@ -118,11 +129,56 @@ function M.Motion.sequence(owner, key, steps)
 	runFrom(1)
 end
 
+-- UIScale always scales its object around that object's own AnchorPoint —
+-- for a button (AnchorPoint 0.5,0.5) that's the visual center, correct by
+-- construction, but M.bump is called on plain labels built via Kit.text,
+-- which default to AnchorPoint (0,0) (top-left) like every other label in
+-- this kit, since changing that default would break every Kit.place call
+-- site's positioning math game-wide. Scaling a (0,0)-anchored object grows
+-- it down-and-right from its top-left corner instead of its visual center
+-- — correct fix here (not touching AnchorPoint) is to counter-shift
+-- Position by half the anchor-relative size delta every frame the scale
+-- changes, so the label's on-screen center stays fixed while it pops.
+local function anchorAwareScaleFollow(object, scale)
+	local anchor = object.AnchorPoint
+	if anchor.X == 0.5 and anchor.Y == 0.5 then
+		-- Already centered (e.g. Kit.button) — UIScale is correct as-is,
+		-- no compensation needed.
+		return
+	end
+
+	local baseSize = object.Size
+	local basePosition = object.Position
+
+	local connection = scale:GetPropertyChangedSignal("Scale"):Connect(function()
+		local delta = scale.Scale - 1
+		local offsetX = -baseSize.X.Offset * delta * anchor.X
+		local offsetY = -baseSize.Y.Offset * delta * anchor.Y
+		local scaleX = -baseSize.X.Scale * delta * anchor.X
+		local scaleY = -baseSize.Y.Scale * delta * anchor.Y
+		object.Position = UDim2.new(
+			basePosition.X.Scale + scaleX, basePosition.X.Offset + offsetX,
+			basePosition.Y.Scale + scaleY, basePosition.Y.Offset + offsetY
+		)
+	end)
+
+	-- watch() registers object's Destroying signal once and routes it
+	-- through Scheduler.clear — piggyback the same hook to also disconnect
+	-- this connection, rather than polling object.Parent on every Scale
+	-- change (which only cancels the connection on its NEXT fire, not
+	-- immediately at destroy time).
+	watch(object)
+	object.Destroying:Once(function()
+		connection:Disconnect()
+	end)
+end
+
 function M.bump(object, peak)
 	if not object or not object.Parent then return end
 	local scale = object:FindFirstChild("ValueBump")
 	if not scale then
 		scale = Primitives.create("UIScale", object, { Name = "ValueBump", Scale = 1 })
+		anchorAwareScaleFollow(object, scale)
 	end
 	M.Motion.sequence(object, "bump", {
 		{ object = scale, properties = { Scale = peak or 1.045 }, duration = 0.12, style = Enum.EasingStyle.Back },
@@ -139,6 +195,41 @@ function M.setValue(label, value, peak)
 			M.bump(label, peak)
 		end
 	end
+end
+
+-- Ticks label.Text smoothly from its last-known raw number toward `raw`,
+-- reformatting on every intermediate frame via `format` — for a steady
+-- server-push value (a live balance, a live rate) where a tick reads as
+-- motion, not noise. Distinct from Kit.setValue: that one is for
+-- pre-formatted strings with no underlying number to interpolate (most
+-- existing call sites), this one is for genuinely numeric values. `peak`,
+-- like Kit.bump, fires the pop-scale once the tick settles rather than
+-- every frame — pass false to skip it.
+local lastTicked = setmetatable({}, { __mode = "k" }) -- label -> last raw number
+
+function M.tickValue(label, raw, format, presetName, peak)
+	if not M.motion then
+		ValueTicker.cancel(label, "tick")
+		lastTicked[label] = raw
+		label.Text = format(raw)
+		return
+	end
+
+	local current = lastTicked[label]
+	if current == nil then
+		current = raw
+	end
+	lastTicked[label] = raw
+
+	local handle = ValueTicker.animate(label, "tick", current, raw, presetName or "smooth", function(value)
+		label.Text = format(value)
+	end, function()
+		if peak ~= false then
+			M.bump(label, peak)
+		end
+	end)
+	Scheduler.Scheduler.track(label, "tick", handle)
+	count("tweensStarted")
 end
 
 -- Card-level "locked" treatment: dims the whole card and shows a padlock
@@ -441,6 +532,193 @@ function M.focusRing(object)
 	end)
 
 	return ring
+end
+
+-- Continuous low-amplitude breathing glow on a card's edge, gated on
+-- preferences.motion (glow ambience, not particles). Modeled on pulse()'s
+-- lifecycle discipline: RepeatCount = -1, Reverses = true, returning a
+-- handle with a stop() method and automatically cleaned up if `card` is
+-- destroyed.
+function M.ambientGlow(card, options)
+	options = options or {}
+	local color = options.color or colors.accent
+
+	local stroke = card:FindFirstChild("AmbientGlow")
+	if not stroke then
+		stroke = Primitives.create("UIStroke", card, {
+			Name = "AmbientGlow",
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Thickness = options.thickness or 2,
+			Color = color,
+			Transparency = 1,
+		})
+	end
+	stroke.Color = color
+
+	local active = true
+	local function stop()
+		if not active then
+			return
+		end
+		active = false
+		Scheduler.Scheduler.clear(card, "ambientGlow")
+		if stroke.Parent then
+			stroke.Transparency = 1
+		end
+	end
+
+	if not M.motion then
+		stroke.Transparency = 1
+		return { stop = stop }
+	end
+
+	stroke.Transparency = 0.92
+	local tween = TweenService:Create(
+		stroke,
+		TweenInfo.new(options.period or 1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Transparency = options.peak or 0.52 }
+	)
+	Scheduler.Scheduler.track(card, "ambientGlow", tween)
+	tween:Play()
+
+	watch(card)
+	card.Destroying:Connect(stop)
+
+	return { stop = stop }
+end
+
+-- Staggered cascade entrance for lists, cards, and grid items
+function M.stagger(items, delayPerItem, preset)
+	delayPerItem = delayPerItem or 0.035
+	preset = preset or "smooth"
+
+	for index, item in ipairs(items) do
+		local scale = item:FindFirstChild("StaggerScale") or item:FindFirstChild("CardScale") or item:FindFirstChildOfClass("UIScale")
+		if not scale then
+			scale = Primitives.create("UIScale", item, { Name = "StaggerScale", Scale = 1 })
+		end
+
+		if not M.motion then
+			scale.Scale = 1
+			item.Visible = true
+		else
+			scale.Scale = 0.94
+			item.Visible = true
+			Scheduler.Scheduler.after(item, "stagger", (index - 1) * delayPerItem, function()
+				if item.Parent then
+					SpringDriver.animate(scale, "stagger", { Scale = 1 }, preset)
+				end
+			end)
+		end
+	end
+end
+
+-- Drifting floating text on user action / reward (e.g. "+1.2K COMPUTE", "DEPLOYED!")
+function M.floatText(parent, text, color, startPos)
+	if not M.motion then
+		return
+	end
+
+	color = color or colors.accent
+	startPos = startPos or UDim2.fromScale(0.5, 0.4)
+
+	local label = Primitives.create("TextLabel", parent, {
+		Name = "FloatText",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = startPos,
+		Size = UDim2.fromOffset(200, 24),
+		BackgroundTransparency = 1,
+		Text = text,
+		Font = Enum.Font.RobotoMono,
+		TextSize = 15,
+		TextColor3 = color,
+		TextStrokeColor3 = colors.background,
+		TextStrokeTransparency = 0.4,
+		ZIndex = parent.ZIndex + 10,
+	})
+
+	local scale = Primitives.create("UIScale", label, { Scale = 0.85 })
+	SpringDriver.animate(scale, "pop", { Scale = 1.08 }, "bouncy")
+
+	local targetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset, startPos.Y.Scale, startPos.Y.Offset - 28)
+	local tween = TweenService:Create(label, TweenInfo.new(0.65, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+		Position = targetPos,
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	tween:Play()
+
+	Scheduler.Scheduler.after(label, "floatDestroy", 0.7, function()
+		if label.Parent then
+			label:Destroy()
+		end
+	end)
+end
+
+-- Epic celebratory fanfare with expanding shockwave ring and confetti burst
+function M.fanfare(card, color)
+	color = color or colors.accent
+
+	if M.motion then
+		local shockwave = Primitives.create("Frame", card, {
+			Name = "Shockwave",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(12, 12),
+			BackgroundTransparency = 1,
+			ZIndex = card.ZIndex + 3,
+		})
+		Primitives.corner(shockwave, 999)
+		local ring = Primitives.create("UIStroke", shockwave, {
+			Color = color,
+			Thickness = 3,
+			Transparency = 0.1,
+		})
+
+		SpringDriver.animate(shockwave, "expand", { Size = UDim2.fromScale(1.4, 2.2) }, "bouncy")
+		local fade = TweenService:Create(ring, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Transparency = 1,
+			Thickness = 0.5,
+		})
+		fade:Play()
+
+		Scheduler.Scheduler.after(shockwave, "shockDestroy", 0.52, function()
+			if shockwave.Parent then
+				shockwave:Destroy()
+			end
+		end)
+	end
+
+	M.confetti(card, color)
+end
+
+-- Continuous rhythmic pulse on a border or highlight
+function M.glowPulse(object, color, period)
+	color = color or colors.accent
+	local stroke = object:FindFirstChild("GlowPulse")
+	if not stroke then
+		stroke = Primitives.create("UIStroke", object, {
+			Name = "GlowPulse",
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Thickness = 2.5,
+			Color = color,
+			Transparency = 0.9,
+		})
+	end
+	stroke.Color = color
+
+	if not M.motion then
+		stroke.Transparency = 1
+		return
+	end
+
+	local tween = TweenService:Create(
+		stroke,
+		TweenInfo.new(period or 1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Transparency = 0.35 }
+	)
+	Scheduler.Scheduler.track(object, "glowPulse", tween)
+	tween:Play()
 end
 
 return M

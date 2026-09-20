@@ -91,10 +91,19 @@ MotionService.Spring = Spring
 -- (Enum.EasingStyle.Back) — not a generic formula, since duration (a fixed
 -- endpoint) and spring params (an asymptotic approach) don't have a
 -- principled 1:1 mapping worth inventing for 3 buckets.
+--
+-- Playground rewrite: all three moved underdamped (visible overshoot),
+-- since bounce is now the DEFAULT interaction character game-wide, not
+-- reserved for celebratory moments only — "snappy"/"smooth" still name
+-- the same roles (press-feedback vs. gentler settle), they're just bouncier
+-- than before. Frequencies chosen to keep 95%-settle time under ~0.4s even
+-- for "bouncy" (verified empirically in Studio against spr's real
+-- integrator, not just the analytic estimate) — this is a values-only
+-- change, the Spring integrator/SpringDriver/Vendor/spr.luau are untouched.
 MotionService.Presets = {
-	snappy = { frequency = 9, damping = 1 },
-	smooth = { frequency = 5, damping = 1 },
-	bouncy = { frequency = 6, damping = 0.55 },
+	snappy = { frequency = 11, damping = 0.65 },
+	smooth = { frequency = 8, damping = 0.75 },
+	bouncy = { frequency = 7.5, damping = 0.5 },
 }
 
 function MotionService.vectorSpring(frequency, damping)

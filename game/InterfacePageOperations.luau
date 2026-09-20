@@ -1,62 +1,92 @@
+--!strict
 local InterfaceShared = require(script.Parent.InterfaceShared)
 
 local InterfacePageOperations = {}
 
 function InterfacePageOperations.build(Shared: InterfaceShared.Shared)
-	local Kit, C, Config = Shared.Kit, Shared.C, Shared.Config
-	local positionText, liven = Shared.positionText, Shared.liven
-	local bind, layoutPage = Shared.bind, Shared.layoutPage
+	local Kit = Shared.Kit
+	local C = Shared.C
+	local Config = Shared.Config
+	local positionText = Shared.positionText
+	local liven = Shared.liven
+	local bind = Shared.bind
+	local layoutPage = Shared.layoutPage
 	local fmt = Shared.fmt
+	local Tokens = Shared.Tokens
 
-	local operationSummary = Kit.card(Shared.pages.operations, "NetworkState", 150)
-	positionText(operationSummary, "Eyebrow", "SHIFT TELEMETRY", 22, 18, 260, 20, 10, C.muted, true).Font = Enum.Font.RobotoMono
+	local pageRoot = Shared.pages.operations
 
-	local energyValue = positionText(operationSummary, "Energy", "100 / 100 ENERGY", 22, 44, 280, 30, 22, C.warning, true)
+	-- =========================================================================
+	-- 1. TELEMETRY HEADER: ENERGY GRID & SHIFT METRICS
+	-- =========================================================================
+	local operationSummary = Kit.card(pageRoot, "ShiftTelemetry", 150, C.panel)
+
+	local eyebrow = positionText(operationSummary, "Eyebrow", "Tactical Fleet Operations", 22, 16, 260, 20, 11, C.textSub, true)
+
+	local statusBadge = Kit.badge(operationSummary, "Grid Nominal", "energy", true)
+	Kit.place(statusBadge, 220, 16, 90, 20)
+
+	local energyValue = positionText(operationSummary, "Energy", "100 / 100 Energy", 22, 40, 300, 30, 20, C.energy, true)
 	energyValue.Font = Enum.Font.RobotoMono
 
-	local energyBar, energyFill = Kit.progress(operationSummary, "EnergyReserve")
-	Kit.progressShimmer(energyFill)
-	local wasEnergyFull = false
-	local operationTelemetry = positionText(operationSummary, "Telemetry", "", 22, 108, 700, 22, 12, C.muted)
+	local energyProgressBar = Kit.progressBar(operationSummary, "EnergyReserve", 6, C.energy)
+
+	local operationTelemetry = positionText(operationSummary, "Telemetry", "", 22, 110, 700, 20, 11, C.muted)
 	operationTelemetry.Font = Enum.Font.RobotoMono
 
-	local rechargeButton = liven(Kit.button(operationSummary, "Recharge", "Emergency recharge", function()
+	local rechargeButton = liven(Kit.button(operationSummary, "Recharge", "Emergency Recharge", function()
 		Shared.fn.act("recharge")
-	end))
+	end, "secondary"))
 
+	-- =========================================================================
+	-- 2. DISPATCH MISSION CARDS
+	-- =========================================================================
 	local operationCards = {}
 	for index, operation in ipairs(Config.Operations) do
-		local card = Kit.card(Shared.pages.operations, "Operation_" .. operation.key, 242)
+		local card = Kit.interactiveCard(pageRoot, "Operation_" .. operation.key, 240, C.panel)
+
+		local opBadge = Kit.badge(
+			card,
+			string.format("Mission %02d", index),
+			if index > 8 then "danger" elseif index > 4 then "warning" else "accent",
+			true
+		)
+		Kit.place(opBadge, 20, 16, 80, 20)
 
 		local iconShell = Kit.create("Frame", card, {
 			Name = "IconShell",
 			BackgroundColor3 = C.raised,
 			BorderSizePixel = 0,
 		})
-		Kit.corner(iconShell, 12)
+		Kit.corner(iconShell, Kit.radius.control)
 		Kit.place(
 			Kit.icon(iconShell, "Icon", operation.icon or "operations", if index % 3 == 0 then C.accent2 else C.accent),
-			13, 13, 24, 24
+			11,
+			11,
+			22,
+			22
 		)
 
-		local title = positionText(card, "Title", operation.name, 84, 18, 300, 28, 17, C.text, true)
+		local title = positionText(card, "Title", operation.name, 20, 44, 300, 26, 16, C.text, true)
 		title.TextWrapped = true
 
-		local detail = positionText(card, "Detail", operation.subtitle, 20, 68, 360, 42, 12, C.muted)
+		local detail = positionText(card, "Detail", operation.subtitle, 20, 68, 360, 38, 12, C.textSub)
 		detail.TextWrapped = true
 
-		local chance = positionText(card, "Chance", "", 20, 119, 180, 22, 11, C.accent, true)
-		local reward = positionText(card, "Reward", "", 20, 145, 360, 22, 12, C.text, true)
+		local chance = positionText(card, "Chance", "Reliability: 0%", 20, 112, 200, 20, 11, C.accent, true)
 		chance.Font = Enum.Font.RobotoMono
+
+		local reward = positionText(card, "Reward", "", 20, 136, 360, 20, 11, C.text, true)
 		reward.Font = Enum.Font.RobotoMono
 		reward.Text = string.format(
-			"+%s COMPUTE   +%s DATA   +%s XP",
+			"+%s Compute   +%s Data   +%s XP",
 			fmt(operation.reward),
 			fmt(operation.data),
 			fmt(operation.xp)
 		)
 
-		local launch = liven(Kit.button(card, "Launch", "Connecting…", function()
+		local launchBtn = liven(Kit.button(card, "Launch", "Connecting…", function()
+			Kit.floatText(card, "Dispatching…", C.energy, Vector2.new(0.5, 0.45))
 			Shared.fn.act("operation", operation.key)
 		end, "primary"))
 
@@ -69,10 +99,13 @@ function InterfacePageOperations.build(Shared: InterfaceShared.Shared)
 			detail = detail,
 			chance = chance,
 			reward = reward,
-			launch = launch,
+			launchBtn = launchBtn,
 		}
 	end
 
+	-- =========================================================================
+	-- 3. STATE BINDING
+	-- =========================================================================
 	bind("operations", function(s)
 		local level = s.level or 1
 		local energy = s.energy or 0
@@ -80,98 +113,89 @@ function InterfacePageOperations.build(Shared: InterfaceShared.Shared)
 		local mastery = s.operationMastery or {}
 		local sharedChance = Config.moduleEffect(s, "success") + math.min(0.08, (s.reputation or 0) / 25000)
 
-		energyValue.Text = string.format("%d / %d ENERGY", math.floor(energy), math.floor(capacity))
-		Kit.animate(energyFill, {
-			Size = UDim2.fromScale(math.clamp(energy / capacity, 0, 1), 1),
-		}, 0.24)
+		energyValue.Text = string.format("%d / %d Energy", math.floor(energy), math.floor(capacity))
+		energyProgressBar:SetProgress(math.clamp(energy / capacity, 0, 1), true)
 
 		operationTelemetry.Text = string.format(
-			"LEVEL %d   ·   %s DATA   ·   %s REPUTATION   ·   ×%d STREAK   ·   %d CRITICAL   ·   %d FLAWLESS",
+			"Level %d  ·  %s Data  ·  %s Reputation  ·  ×%d Streak  ·  %d Critical  ·  %d Flawless",
 			level,
-			fmt(s.data),
-			fmt(s.reputation),
+			fmt(s.data or 0),
+			fmt(s.reputation or 0),
 			s.operationCombo or 0,
 			s.criticalSuccesses or 0,
 			s.flawlessSuccesses or 0
 		)
 
-		local full = energy >= capacity - 1
-		if full and not wasEnergyFull then
-			Kit.progressFull(energyBar)
-		end
-		wasEnergyFull = full
-
-		local rechargeCost = math.floor(120 * level ^ 1.35)
+		local energyDepleted = energy < 10
 		Kit.enable(
 			rechargeButton,
-			not full and (s.compute or 0) >= rechargeCost,
-			if full then "Reserve full" else "Recharge 40% · " .. fmt(rechargeCost),
-			false
+			energyDepleted and (s.compute or 0) >= 100,
+			if energyDepleted then "Emergency Recharge · 100 C" else "Reserve Stable",
+			true
 		)
 
 		for _, item in ipairs(operationCards) do
-			local operation = item.operation
-			local unlocked = level >= operation.unlock
-			local ranks = mastery[operation.key] or 0
-			local chance = math.clamp(operation.chance + ranks * 0.005 + sharedChance, 0.15, 0.98)
+			local op = item.operation
+			local unlocked = level >= op.unlock
+			local enoughEnergy = energy >= op.energy
+			local opMastery = mastery[op.key] or 0
 
-			item.chance.Text = if unlocked
-				then string.format("OP-%02d / %d%% / E%d / M%d", item.index, math.floor(chance * 100 + 0.5), operation.energy, ranks)
-				else string.format("OP-%02d / LOCKED UNTIL L%d", item.index, operation.unlock)
+			local successChance = math.clamp(
+				op.chance + opMastery * 0.005 + sharedChance,
+				0.15,
+				0.98
+			)
 
-			Kit.lock(item.card, not unlocked, item.launch)
+			item.chance.Text = string.format("Reliability: %d%% · %d Energy", math.floor(successChance * 100), op.energy)
+			Kit.lock(item.card, not unlocked, item.launchBtn)
 
 			Kit.enable(
-				item.launch,
-				unlocked and energy >= operation.energy,
-				if not unlocked then "Locked"
-					elseif energy < operation.energy then "Energy recovering"
-					else "Begin operation",
+				item.launchBtn,
+				unlocked and enoughEnergy,
+				if not unlocked then "Unlocks at Level " .. op.unlock
+					elseif not enoughEnergy then "Requires " .. op.energy .. " Energy"
+					else "Dispatch Mission",
 				true
 			)
 		end
 	end)
 
+	-- =========================================================================
+	-- 4. RESPONSIVE LAYOUT
+	-- =========================================================================
 	layoutPage("operations", function(w)
-		local columns = if w >= 720 then 2 else 1
-		local cw = (w - (columns - 1) * 16) / columns
-		local compact = w < 650
-		local telemetryWraps = w < 470
-		local summaryHeight = if telemetryWraps then 258 elseif compact then 220 else 150
+		local narrow = w < 680
 
-		Kit.place(operationSummary, 0, 137, w, summaryHeight)
-		Kit.place(energyBar, 22, 82, w - 44, 6)
+		Kit.place(operationSummary, 0, 137, w, if narrow then 170 else 146)
+		Kit.place(energyProgressBar.instance, 22, 78, if narrow then w - 44 else w - 240, 6)
+		Kit.place(rechargeButton, if narrow then 22 else w - 210, if narrow then 96 else 52, if narrow then w - 44 else 188, 38)
+		operationTelemetry.Position = UDim2.fromOffset(22, if narrow then 144 else 108)
+		operationTelemetry.Size = UDim2.fromOffset(w - 44, 20)
 
-		operationTelemetry.Position = UDim2.fromOffset(22, 108)
-		operationTelemetry.Size = UDim2.fromOffset(w - 44, if telemetryWraps then 58 else 22)
-		operationTelemetry.TextWrapped = telemetryWraps
+		local gridStartY = 137 + (if narrow then 170 else 146) + 16
 
-		if compact then
-			Kit.place(rechargeButton, 22, if telemetryWraps then 182 else 158, w - 44, 44)
-		else
-			Kit.place(rechargeButton, w - 218, 28, 196, 44)
+		local columns = if w >= 880 then 2 else 1
+		local cardWidth = (w - (columns - 1) * 16) / columns
+		local cardHeight = 240
+
+		for idx, item in ipairs(operationCards) do
+			local localIdx = idx - 1
+			local col = localIdx % columns
+			local row = localIdx // columns
+
+			local cardX = col * (cardWidth + 16)
+			local cardY = gridStartY + row * (cardHeight + 16)
+
+			Kit.place(item.card, cardX, cardY, cardWidth, cardHeight)
+
+			item.title.Size = UDim2.fromOffset(cardWidth - 110, 26)
+			item.detail.Size = UDim2.fromOffset(cardWidth - 40, 38)
+			Kit.place(item.iconShell, cardWidth - 60, 16, 44, 44)
+			Kit.place(item.launchBtn, 20, 178, cardWidth - 40, 40)
 		end
 
-		local startY = 137 + summaryHeight + 16
-
-		for index, item in ipairs(operationCards) do
-			local row = (index - 1) // columns
-			local column = (index - 1) % columns
-
-			Kit.place(item.card, column * (cw + 16), startY + row * 258, cw, 242)
-			Kit.place(item.iconShell, 20, 16, 50, 50)
-
-			item.title.Size = UDim2.fromOffset(cw - 104, 42)
-			item.detail.Size = UDim2.fromOffset(cw - 40, 42)
-			item.chance.Size = UDim2.fromOffset(cw - 40, 22)
-			item.chance.TextSize = if cw < 390 then 9 else 11
-			item.reward.Size = UDim2.fromOffset(cw - 40, 22)
-			item.reward.TextSize = if cw < 330 then 10 else 12
-
-			Kit.place(item.launch, 20, 182, cw - 40, 44)
-		end
-
-		return startY + math.ceil(#operationCards / columns) * 258
+		local totalRows = math.ceil(#operationCards / columns)
+		return gridStartY + totalRows * (cardHeight + 16)
 	end)
 end
 

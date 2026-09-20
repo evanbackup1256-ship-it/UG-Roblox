@@ -1,3 +1,4 @@
+--!strict
 local MarketplaceService = game:GetService("MarketplaceService")
 
 local InterfaceShared = require(script.Parent.InterfaceShared)
@@ -5,45 +6,62 @@ local InterfaceShared = require(script.Parent.InterfaceShared)
 local InterfacePageEvents = {}
 
 function InterfacePageEvents.build(Shared: InterfaceShared.Shared)
-	local Kit, C, Config = Shared.Kit, Shared.C, Shared.Config
-	local positionText, liven = Shared.positionText, Shared.liven
-	local bind, layoutPage, relayout = Shared.bind, Shared.layoutPage, Shared.relayout
+	local Kit = Shared.Kit
+	local C = Shared.C
+	local Config = Shared.Config
+	local positionText = Shared.positionText
+	local liven = Shared.liven
+	local bind = Shared.bind
+	local layoutPage = Shared.layoutPage
+	local relayout = Shared.relayout
 	local connect = Shared.connect
 
-	local codes = Kit.card(Shared.pages.events, "Codes", 260)
-	Kit.place(Kit.icon(codes, "Icon", "codes", C.accent), 22, 22, 24, 24)
+	local pageRoot = Shared.pages.events
 
-	local codeTitle = positionText(codes, "Title", "Redeem center", 58, 18, 500, 30, 22, C.text, true)
-	codeTitle.TextWrapped = true
-	codeTitle.TextTruncate = Enum.TextTruncate.None
+	-- =========================================================================
+	-- 1. PROMO CODE TERMINAL
+	-- =========================================================================
+	local codes = Kit.interactiveCard(pageRoot, "CodesVault", 240, C.panel)
+	Kit.place(Kit.icon(codes, "Icon", "codes", C.accent), 22, 22, 22, 22)
 
-	local codeDetail = positionText(codes, "Detail", "Codes are validated by the server and can only be claimed once per save.", 22, 60, 600, 38, 13, C.muted)
+	local codeBadge = Kit.badge(codes, "Promo Codes", "accent", true)
+	Kit.place(codeBadge, 54, 16, 96, 20)
+
+	local codeTitle = positionText(codes, "Title", "Code Redemption", 54, 38, 500, 26, 18, C.text, true)
+	local codeDetail = positionText(
+		codes,
+		"Detail",
+		"Promo codes are verified by the server and may be redeemed once per account.",
+		22,
+		68,
+		600,
+		30,
+		12,
+		C.textSub
+	)
 	codeDetail.TextWrapped = true
 
-	local codeStatus = positionText(codes, "Status", "CHECKING REWARD HISTORY", 22, 102, 600, 22, 10, C.accent, true)
+	local codeStatus = positionText(codes, "Status", "Checking code status…", 22, 102, 600, 20, 11, C.accent, true)
+	codeStatus.Font = Enum.Font.RobotoMono
 
-	local codeInput = Kit.input(codes, "CodeInput", "Enter reward code")
+	local codeInput = Kit.input(codes, "CodeInput", "Enter redemption code…")
 
 	local function submitCode()
 		local code = string.sub(codeInput.Text, 1, 32)
 		if code ~= "" then
+			Kit.fanfare(codes, C.accent)
+			Kit.floatText(codes, "Redeeming…", C.accent, Vector2.new(0.5, 0.45))
 			Shared.fn.act("code", code)
 		end
 	end
 
-	local redeem = liven(Kit.button(codes, "Redeem", "Redeem code", submitCode, "primary"))
+	local redeemBtn = liven(Kit.button(codes, "Redeem", "Redeem Code", submitCode, "primary"))
 
 	local sanitizing = false
 	connect(codeInput:GetPropertyChangedSignal("Text"), function()
-		if sanitizing then
-			return
-		end
-
-		local clean = string.sub(string.upper((string.gsub(codeInput.Text, "[^%w%-]", ""))), 1, 32)
-		if clean == codeInput.Text then
-			return
-		end
-
+		if sanitizing then return end
+		local clean = string.sub(string.upper(string.gsub(codeInput.Text, "[^%w%-]", "")), 1, 32)
+		if clean == codeInput.Text then return end
 		sanitizing = true
 		codeInput.Text = clean
 		codeInput.CursorPosition = #clean + 1
@@ -51,68 +69,67 @@ function InterfacePageEvents.build(Shared: InterfaceShared.Shared)
 	end)
 
 	connect(codeInput.FocusLost, function(enter)
-		if enter then
-			submitCode()
-		end
+		if enter then submitCode() end
 	end)
 
-	local activeCodes = 0
+	local totalCodesCount = 0
 	for _ in Config.Codes do
-		activeCodes += 1
+		totalCodesCount += 1
 	end
 
 	bind("events", function(s)
-		local redeemed = 0
+		local redeemedCount = 0
 		for _ in s.codes or {} do
-			redeemed += 1
+			redeemedCount += 1
 		end
-		codeStatus.Text = string.format("%d ACTIVE REWARDS  ·  %d REDEEMED", activeCodes, redeemed)
+		codeStatus.Text = string.format("%d active codes available  ·  %d redeemed", totalCodesCount, redeemedCount)
 	end)
 
+	-- =========================================================================
+	-- 2. FLEET BULLETINS & CHANGELOG
+	-- =========================================================================
 	local changelogIndex = 1
-	local news = Kit.card(Shared.pages.events, "Changelog", 400)
+	local news = Kit.interactiveCard(pageRoot, "ChangelogHero", 370, C.panel)
 
-	local newsEyebrow = positionText(news, "Eyebrow", "", 22, 22, 500, 22, 11, C.accent, true)
-	local newsTitle = positionText(news, "Title", "", 22, 55, 500, 34, 25, C.text, true)
-	newsTitle.TextWrapped = true
-	newsTitle.TextTruncate = Enum.TextTruncate.None
+	local newsEyebrow = positionText(news, "Eyebrow", "", 22, 18, 500, 20, 11, C.accent, true)
+	newsEyebrow.Font = Enum.Font.RobotoMono
 
-	local newsDate = positionText(news, "Date", "", 22, 88, 500, 22, 11, C.muted)
+	local newsTitle = positionText(news, "Title", "", 22, 42, 500, 28, 20, C.text, true)
+	local newsDate = positionText(news, "Date", "", 22, 72, 500, 20, 11, C.muted)
+	newsDate.Font = Enum.Font.RobotoMono
 
 	local notes = {}
 	for i = 1, 4 do
-		local text = positionText(news, "Entry" .. i, "", 22, 116 + (i - 1) * 44, 600, 36, 13, C.muted)
+		local text = positionText(news, "Entry" .. i, "", 22, 98 + (i - 1) * 40, 600, 32, 13, C.textSub)
 		text.TextWrapped = true
-		text.TextTruncate = Enum.TextTruncate.None
 		notes[i] = text
 	end
 
 	local changelogPrev = Kit.button(news, "Previous", "Older", function()
 		changelogIndex = math.min(#Config.Changelogs, changelogIndex + 1)
 		relayout("events")
-	end)
+	end, "secondary")
 
 	local changelogPage = Kit.text(news, "Page", "", 11, C.muted, true)
+	changelogPage.Font = Enum.Font.RobotoMono
 	changelogPage.TextXAlignment = Enum.TextXAlignment.Center
 
 	local changelogNext = Kit.button(news, "Next", "Newer", function()
 		changelogIndex = math.max(1, changelogIndex - 1)
 		relayout("events")
-	end)
+	end, "secondary")
 
-	local markRead = liven(Kit.button(news, "MarkRead", "Mark latest as read", function()
+	local markReadBtn = liven(Kit.button(news, "MarkRead", "Acknowledge", function()
 		Shared.fn.act("changelog")
 	end, "primary"))
 
 	local function refreshChangelog()
 		local bulletin = Config.Changelogs[changelogIndex]
-		if not bulletin then
-			return
-		end
+		if not bulletin then return end
 
-		newsEyebrow.Text = bulletin.tag .. "  /  VERSION " .. bulletin.version
+		newsEyebrow.Text = bulletin.tag .. " · Version " .. bulletin.version
 		newsTitle.Text = bulletin.title
-		newsDate.Text = bulletin.date
+		newsDate.Text = "Released: " .. bulletin.date
 
 		for index, label in ipairs(notes) do
 			local copy = bulletin.entries[index]
@@ -127,87 +144,84 @@ function InterfacePageEvents.build(Shared: InterfaceShared.Shared)
 
 	bind("events", function(s)
 		local read = s.changelogVersion == Config.Changelog.version
-		Kit.enable(markRead, not read, if read then "Latest update read" else "Mark latest as read", true)
+		Kit.enable(markReadBtn, not read, if read then "Acknowledged" else "Acknowledge Update", true)
 	end)
 
-	local support = Kit.card(Shared.pages.events, "Support", 160)
-	positionText(support, "Title", "Support the cloud", 22, 20, 600, 30, 20, C.text, true)
+	-- =========================================================================
+	-- 3. FLEET SUBSCRIPTION & CLOUD SUPPORT
+	-- =========================================================================
+	local support = Kit.interactiveCard(pageRoot, "SupportVault", 160, C.panel)
+	positionText(support, "Title", "Fleet Network Passes", 22, 18, 600, 26, 18, C.text, true)
+	local supportSub = positionText(support, "Detail", "Permanent game passes and server infrastructure upgrades.", 22, 44, 600, 22, 12, C.textSub)
 
-	local paid = {}
+	local paidButtons = {}
 	for key, id in Config.Gamepasses do
 		if id > 0 then
-			table.insert(paid, Kit.button(support, key, if key == "Founder" then "Founder pass" else "2× production", function()
+			table.insert(paidButtons, Kit.button(support, key, if key == "Founder" then "Founder Pass" else "2× Fleet Output", function()
 				MarketplaceService:PromptGamePassPurchase(Shared.player, id)
-			end))
+			end, "secondary"))
 		end
 	end
 
 	for key, product in Config.Products do
 		if product.id > 0 then
-			table.insert(paid, Kit.button(support, key, product.name, function()
+			table.insert(paidButtons, Kit.button(support, key, product.name, function()
 				MarketplaceService:PromptProductPurchase(Shared.player, product.id)
-			end))
+			end, "primary"))
 		end
 	end
 
-	support.Visible = #paid > 0
-
+	-- =========================================================================
+	-- 4. RESPONSIVE LAYOUT
+	-- =========================================================================
 	layoutPage("events", function(w)
-		local narrow = w < 400
-		local stacked = w < 520
-		local codeHeight = if narrow then 284 else 260
+		local narrow = w < 640
 
-		Kit.place(codes, 0, 137, w, codeHeight)
-		codeTitle.Size = UDim2.fromOffset(w - 80, 32)
-		codeTitle.TextSize = if narrow then 19 else 22
-		codeDetail.Size = UDim2.fromOffset(w - 44, if narrow then 58 else 38)
-		codeStatus.Position = UDim2.fromOffset(22, if narrow then 124 else 102)
-		codeStatus.Size = UDim2.fromOffset(w - 44, 22)
-
-		Kit.place(codeInput, 22, if narrow then 158 else 142, if stacked then w - 44 else w - 250, 44)
-		Kit.place(
-			redeem,
-			if stacked then 22 else w - 216,
-			if stacked then (if narrow then 212 else 196) else 142,
-			if stacked then math.min(210, w - 44) else 194,
-			44
-		)
-
-		local newsY = 157 + codeHeight
-		local newsHeight = if narrow then 432 else 400
-
-		Kit.place(news, 0, newsY, w, newsHeight)
-		newsTitle.Size = UDim2.fromOffset(w - 44, if narrow then 54 else 34)
-		newsTitle.TextSize = if narrow then 21 else 25
-		newsDate.Position = UDim2.fromOffset(22, if narrow then 110 else 88)
-		newsDate.Size = UDim2.fromOffset(w - 44, 22)
-
-		for index, text in ipairs(notes) do
-			text.Position = UDim2.fromOffset(22, (if narrow then 138 else 116) + (index - 1) * (if narrow then 48 else 44))
-			text.Size = UDim2.fromOffset(w - 44, if narrow then 42 else 36)
+		-- 1. Codes Vault
+		Kit.place(codes, 0, 137, w, if narrow then 250 else 210)
+		codeTitle.Size = UDim2.fromOffset(w - 44, 26)
+		codeDetail.Size = UDim2.fromOffset(w - 44, 30)
+		if narrow then
+			Kit.place(codeInput, 22, 132, w - 44, 40)
+			Kit.place(redeemBtn, 22, 182, w - 44, 40)
+		else
+			Kit.place(codeInput, 22, 134, math.max(120, w - 210), 40)
+			Kit.place(redeemBtn, w - 176, 134, 154, 40)
 		end
 
+		local newsY = 137 + (if narrow then 250 else 210) + 16
+
+		-- 2. Changelog
+		Kit.place(news, 0, newsY, w, 370)
+		newsTitle.Size = UDim2.fromOffset(w - 44, 28)
+		for _, label in ipairs(notes) do
+			label.Size = UDim2.fromOffset(w - 44, 32)
+		end
+
+		local controlsY = 312
+		if narrow then
+			Kit.place(changelogPrev, 22, controlsY, 70, 36)
+			Kit.place(changelogPage, 98, controlsY, 60, 36)
+			Kit.place(changelogNext, 164, controlsY, 70, 36)
+			Kit.place(markReadBtn, 240, controlsY, w - 262, 36)
+		else
+			Kit.place(changelogPrev, 22, controlsY, 86, 38)
+			Kit.place(changelogPage, 114, controlsY, 70, 38)
+			Kit.place(changelogNext, 190, controlsY, 86, 38)
+			Kit.place(markReadBtn, w - 210, controlsY, 188, 38)
+		end
 		refreshChangelog()
 
-		local pagerY = if narrow then 378 else 340
-		local side = math.min(100, (w - 66) / 3)
-		local pageLabelX = 22 + side + 6
-		Kit.place(changelogPrev, 22, pagerY, side, 42)
-		Kit.place(changelogPage, pageLabelX, pagerY, math.max(1, w - side - pageLabelX - 6), 42)
-		Kit.place(changelogNext, w - side, pagerY, side, 42)
-		Kit.place(markRead, 22, if narrow then 328 else 292, math.min(210, w - 44), 38)
+		local supportY = newsY + 370 + 16
 
-		if #paid == 0 then
-			return newsY + newsHeight
+		-- 3. Support
+		Kit.place(support, 0, supportY, w, 160)
+		local btnW = math.clamp((w - 44 - (#paidButtons - 1) * 12) / math.max(1, #paidButtons), 120, 240)
+		for i, btn in ipairs(paidButtons) do
+			Kit.place(btn, 22 + (i - 1) * (btnW + 12), 88, btnW, 40)
 		end
 
-		local supportY = newsY + newsHeight + 20
-		Kit.place(support, 0, supportY, w, 70 + #paid * 52)
-		for i, button in ipairs(paid) do
-			Kit.place(button, 22, 62 + (i - 1) * 52, w - 44, 44)
-		end
-
-		return supportY + 70 + #paid * 52
+		return supportY + 160 + 16
 	end)
 end
 

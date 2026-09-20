@@ -12,6 +12,7 @@ local Primitives = require(script.Primitives)
 local Motion = require(script.Motion)
 local Controls = require(script.Controls)
 local ButtonModule = require(script.Button)
+local Layout = require(script.Layout)
 
 local Kit = {}
 
@@ -20,6 +21,7 @@ Kit.colors = Tokens.colors
 Kit.radius = Tokens.radius
 Kit.glow = Tokens.glow
 Kit.type = Tokens.type
+Kit.font = Tokens.font
 
 -- Scheduler / Theme / State / Diagnostics
 Kit.Scheduler = Scheduler.Scheduler
@@ -34,28 +36,49 @@ Kit.stroke = Primitives.stroke
 Kit.text = Primitives.text
 Kit.place = Primitives.place
 Kit.card = Primitives.card
+Kit.interactiveCard = Primitives.interactiveCard
+Kit.badge = Primitives.badge
+Kit.statusDot = Primitives.statusDot
+Kit.hudFrame = Primitives.hudFrame
+Kit.iconBadge = Primitives.iconBadge
+Kit.divider = Primitives.divider
 Kit.icon = Primitives.icon
 Kit.rocketIcon = Primitives.rocketIcon
+Kit.recessedWell = Primitives.recessedWell
 Kit.tintIcon = Primitives.tintIcon
+
+-- Layout
+Kit.stack = Layout.stack
+Kit.grid = Layout.grid
 
 -- Motion / effects
 Kit.animate = Motion.animate
 Kit.Motion = Motion.Motion
 Kit.bump = Motion.bump
 Kit.setValue = Motion.setValue
+Kit.tickValue = Motion.tickValue
 Kit.lock = Motion.lock
 Kit.shake = Motion.shake
+Kit.stagger = Motion.stagger
+Kit.floatText = Motion.floatText
+Kit.fanfare = Motion.fanfare
+Kit.glowPulse = Motion.glowPulse
 Kit.progressShimmer = Motion.progressShimmer
 Kit.progressFull = Motion.progressFull
 Kit.gradientAnimate = Motion.gradientAnimate
 Kit.confetti = Motion.confetti
+Kit.ambientGlow = Motion.ambientGlow
 Kit.focusRing = Motion.focusRing
 
 -- Controls
 Kit.button = ButtonModule.button
 Kit.enable = ButtonModule.enable
 Kit.checkbox = Controls.checkbox
+Kit.toggle = Controls.toggle
+Kit.segmented = Controls.segmented
 Kit.progress = Controls.progress
+Kit.progressBar = Controls.progressBar
+Kit.skeleton = Controls.skeleton
 Kit.input = Controls.input
 
 -- Kit.sound / Kit.motion: both need every WRITE (not just the first) to

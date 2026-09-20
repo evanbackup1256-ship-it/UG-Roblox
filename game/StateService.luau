@@ -44,6 +44,7 @@ function StateService.new(config, data)
 			lastClaimAt = 0
 		},
 		settings = table.clone(config.Settings),
+		accentTheme = config.DefaultAccentTheme,
 		boostUntil = 0,
 		boostReady = 0,
 		canSave = true,
@@ -52,6 +53,7 @@ function StateService.new(config, data)
 		updatedAt = os.time(),
 		codes = {},
 		changelogVersion = "",
+		callsign = "",
 		tutorialComplete = false,
 		tutorialStep = 1,
 		prestigeTokens = math.floor(finite(source.prestigeTokens, 0, 1e9)),
@@ -96,6 +98,9 @@ function StateService.new(config, data)
 			end
 		end
 	end
+	if type(source.accentTheme) == "string" and table.find(config.AccentThemes, source.accentTheme) then
+		state.accentTheme = source.accentTheme
+	end
 	if type(source.codes) == "table" then
 		for code, redeemed in pairs(source.codes) do
 			if type(code) == "string" and #code <= 32 and redeemed == true then
@@ -104,6 +109,7 @@ function StateService.new(config, data)
 		end
 	end
 	state.changelogVersion = type(source.changelogVersion) == "string" and string.sub(source.changelogVersion, 1, 32) or ""
+	state.callsign = type(source.callsign) == "string" and string.sub(source.callsign, 1, 20) or ""
 	state.tutorialComplete = source.tutorialComplete == true
 	state.tutorialStep = math.clamp(math.floor(finite(source.tutorialStep, 1, #config.Tutorial)), 1, #config.Tutorial)
 	state.jobs = math.floor(finite(source.jobs, 0, 1e9))
@@ -159,9 +165,11 @@ function StateService.public(state, config, now)
 			jobs = state.jobs
 		},
 		settings = table.clone(state.settings),
+		accentTheme = state.accentTheme,
 		boostUntil = state.boostUntil,
 		boostReady = state.boostReady,
 		codes = table.clone(state.codes),
+		callsign = state.callsign,
 		changelogVersion = state.changelogVersion,
 		changelog = config.Changelog,
 		changelogs = config.Changelogs,

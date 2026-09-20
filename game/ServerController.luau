@@ -1,6 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
 
 local package = ReplicatedStorage:WaitForChild("DeckGame")
 local server = ServerScriptService:WaitForChild("DeckServer")
@@ -155,6 +156,14 @@ function ServerController.start(ServiceBag, Maid)
 			end
 		end
 
+		if type(changes.accentTheme) == "string"
+			and table.find(Config.AccentThemes, changes.accentTheme)
+			and state.accentTheme ~= changes.accentTheme
+		then
+			state.accentTheme = changes.accentTheme
+			changed = true
+		end
+
 		if changed then
 			StateService.touch(state)
 			trace("preferences saved: user=%d", player.UserId)
@@ -172,6 +181,21 @@ function ServerController.start(ServiceBag, Maid)
 		if not throttle:Consume("action", player, 10, 6) then
 			trace("action throttled: user=%d kind=%s", player.UserId, tostring(kind))
 			return response(state, false, "One moment…")
+		end
+
+		-- Player-supplied display text (shown to other players via the
+		-- header and leaderboard) must go through Roblox's chat filter
+		-- before it ever reaches state — ActionService.Execute is
+		-- deliberately player-agnostic (see its own comment), so this is
+		-- the one call site with the Player instance FilterStringAsync
+		-- needs, done here rather than threading `player` through every
+		-- Execute branch for the sake of this one.
+		if kind == "callsign" and type(key) == "string" and key ~= "" then
+			local filterOk, filtered = pcall(function()
+				local result = TextService:FilterStringAsync(key, player.UserId)
+				return result:GetNonChatStringForBroadcastAsync()
+			end)
+			key = if filterOk then filtered else ""
 		end
 
 		local invoked, ok, message = xpcall(function()

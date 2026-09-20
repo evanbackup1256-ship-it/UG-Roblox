@@ -678,6 +678,12 @@ Config.Settings = {
 	orbitSpeed = 0.3
 }
 
+-- Validated separately from Config.Settings above (StateService.luau's
+-- generic loop over Config.Settings only handles boolean/number defaults)
+-- since this is a string enum, not a plain toggle/slider.
+Config.AccentThemes = { "teal", "violet", "amber", "rose" }
+Config.DefaultAccentTheme = "teal"
+
 Config.Codes = {
 	CLOUDSTART = { reward = 250, label = "Founder supply", description = "A welcome cache for every new operator.", category = "WELCOME" },
 	DECK2026 = { reward = 750, label = "Launch celebration", description = "Launch-week compute for the community.", category = "EVENT" },

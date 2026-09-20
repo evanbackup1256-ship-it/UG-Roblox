@@ -23,6 +23,8 @@ export type Shared = {
 	director: any,
 	player: Player,
 	Shop: any,
+	SpringDriver: any,
+	Tokens: any,
 
 	-- mutable fields, reassigned in place by the orchestrator, read fresh
 	-- by pages on every access (never cache these in a page-local)

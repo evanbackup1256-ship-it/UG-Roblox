@@ -38,6 +38,14 @@ function Director.new(root, preferences)
 			drag.angle += delta
 			drag.lastDelta = delta
 			drag.lastX = input.Position.X
+
+			if drag.lastY then
+				local deltaY = (input.Position.Y - drag.lastY) * -0.004
+				drag.tilt = math.clamp((drag.tilt or 0.48) + deltaY, 0.15, 0.90)
+				drag.lastY = input.Position.Y
+			else
+				drag.lastY = input.Position.Y
+			end
 		end
 	end)
 
@@ -52,33 +60,52 @@ function Director.new(root, preferences)
 			-- stopping dead, scaled to a per-second rate for the Step()
 			-- decay below.
 			drag.spin = (drag.lastDelta or 0) * 6
+			drag.lastY = nil
 			self.drag = nil
 		end
 	end)
 
-	-- Scroll-wheel zoom: only for the entry directly under the pointer, and
-	-- only when nothing else is mid-drag (zooming the entry someone else is
-	-- currently orbiting would read as the camera fighting the player).
-	-- ViewportFrame has no dedicated MouseWheel event of its own — the
-	-- input has to be picked up via UserInputService and hit-tested against
-	-- each entry's own on-screen bounds. Position is read via
-	-- GetMouseLocation() rather than input.Position: the latter is
-	-- documented for MouseMovement/Touch, but its X/Y population on a
-	-- MouseWheel event specifically isn't documented, whereas
-	-- GetMouseLocation() is guaranteed available whenever a mouse exists.
+	-- Pointer hit-test loop: drives scroll-wheel zoom and subtle cursor-reactive
+	-- tilt for the at-most-one entry under the pointer. Reused for both
+	-- MouseWheel and MouseMovement rather than creating a second hit-test
+	-- connection. Mutually exclusive with active drag and auto-orbit.
 	connect(Input.InputChanged, function(input)
-		if input.UserInputType ~= Enum.UserInputType.MouseWheel or self.drag then
+		local isWheel = input.UserInputType == Enum.UserInputType.MouseWheel
+		local isMove = input.UserInputType == Enum.UserInputType.MouseMovement
+
+		if not isWheel and not isMove then
+			return
+		end
+		if self.drag then
 			return
 		end
 
 		local position = Input:GetMouseLocation()
+		local canHoverTilt = isMove and self.preferences.motion and not (self.preferences.autoOrbit and self.preferences.motion)
+		local hoveredEntry = nil
+
 		for _, entry in ipairs(self.entries) do
 			if entry.active and self:IsVisible(entry) then
 				local p = entry.viewport.AbsolutePosition
 				local s = entry.viewport.AbsoluteSize
 				if position.X >= p.X and position.X <= p.X + s.X and position.Y >= p.Y and position.Y <= p.Y + s.Y then
-					entry.zoomDistance = math.clamp(entry.zoomDistance - input.Position.Z * 0.08, 0.6, 1.8)
-					break
+					if isWheel then
+						entry.zoomDistance = math.clamp(entry.zoomDistance - input.Position.Z * 0.08, 0.6, 1.8)
+						break
+					elseif canHoverTilt then
+						hoveredEntry = entry
+						local normY = math.clamp((position.Y - (p.Y + s.Y * 0.5)) / math.max(1, s.Y * 0.5), -1, 1)
+						entry.hoverTilt = 0.48 + normY * 0.08
+						break
+					end
+				end
+			end
+		end
+
+		if isMove then
+			for _, entry in ipairs(self.entries) do
+				if entry ~= hoveredEntry and entry.hoverTilt then
+					entry.hoverTilt = nil
 				end
 			end
 		end
@@ -113,6 +140,7 @@ function Director:Add(parent, seed, tint, crate)
 		tint = tint,
 		crate = crate,
 		angle = 0.65,
+		tilt = 0.48,
 		active = false,
 		lastSeen = 0,
 		zoomDistance = 1,
@@ -130,6 +158,7 @@ function Director:Add(parent, seed, tint, crate)
 		then
 			entry.input = input
 			entry.lastX = input.Position.X
+			entry.lastY = input.Position.Y
 			self.drag = entry
 			Kit.sound("hover")
 		end
@@ -280,15 +309,19 @@ function Director:Build(entry)
 		CanQuery = false,
 		CastShadow = false,
 	})
-	Kit.create("PointLight", rimAnchor, {
+	local rimLight = Kit.create("PointLight", rimAnchor, {
 		Color = Color3.fromRGB(150, 190, 255),
 		Brightness = 1.4,
 		Range = 16,
 	})
+	entry.rimLight = rimLight
 
 	entry.camera = Kit.create("Camera", entry.viewport, { FieldOfView = 32 })
 	entry.viewport.CurrentCamera = entry.camera
 	entry.world = world
+	if self.preferences.motion then
+		entry.buildBlend = 1
+	end
 end
 
 function Director:IsVisible(entry)
@@ -355,8 +388,12 @@ function Director:Step(dt)
 				end
 				entry.world = nil
 				entry.camera = nil
+				entry.rimLight = nil
 				entry.spin = nil
 				entry.zoomDistance = 1
+				entry.tilt = 0.48
+				entry.hoverTilt = nil
+				entry.buildBlend = nil
 			end
 
 			entry.viewport.Visible = entry.active
@@ -366,13 +403,36 @@ function Director:Step(dt)
 	-- Per-frame camera + light update
 	for _, entry in ipairs(self.entries) do
 		if entry.active and entry.camera then
-			-- Subtle light sway on crates
-			if entry.crate and self.preferences.motion and self.preferences.particles then
+			-- Subtle light sway across visible viewports
+			if self.preferences.motion and self.preferences.particles then
 				entry.viewport.LightDirection = Vector3.new(
 					-1 + math.sin(os.clock() * 0.35) * 0.2,
 					-1,
 					-1
 				)
+			end
+
+			-- Rim light brightness breathing
+			if entry.rimLight then
+				if self.preferences.motion then
+					entry.rimLight.Brightness = 1.4 + math.sin(os.clock() * 1.5 + (entry.seed or 0)) * 0.35
+				elseif entry.rimLight.Brightness ~= 1.4 then
+					entry.rimLight.Brightness = 1.4
+				end
+			end
+
+			-- One-shot build-in entrance: damp buildBlend to 0 so zoomDistance
+			-- settles in from slightly further out. Piggybacks the 0.1s build rate
+			-- limit so it only ever runs for the entry that just built.
+			if entry.buildBlend and entry.buildBlend > 0.001 then
+				if self.preferences.motion then
+					entry.buildBlend = Motion.damped(entry.buildBlend, 0, dt, 4.5)
+				else
+					entry.buildBlend = nil
+				end
+				if entry.buildBlend and entry.buildBlend <= 0.001 then
+					entry.buildBlend = nil
+				end
 			end
 
 			-- Drag release inertia: coast out the residual spin left by
@@ -385,6 +445,27 @@ function Director:Step(dt)
 				entry.spin = nil
 			end
 
+			-- Cursor-reactive hover tilt / drag release tilt recovery:
+			-- If hovered and idle (no drag, no auto-orbit), tilt eases toward hover target.
+			-- Otherwise, decays back to the 0.48 resting ratio.
+			-- Skipped entirely once settled so idle entries cost nothing extra.
+			local autoOrbiting = self.preferences.motion and self.preferences.autoOrbit and (entry.orbitBlend or 0) > 0.001
+			local targetTilt = 0.48
+			if self.drag ~= entry and not autoOrbiting and entry.hoverTilt then
+				targetTilt = entry.hoverTilt
+			end
+
+			if self.drag ~= entry and entry.tilt and math.abs(entry.tilt - targetTilt) > 0.001 then
+				if self.preferences.motion then
+					entry.tilt = Motion.damped(entry.tilt, targetTilt, dt, 4)
+				else
+					entry.tilt = targetTilt
+				end
+				if math.abs(entry.tilt - targetTilt) <= 0.001 then
+					entry.tilt = targetTilt
+				end
+			end
+
 			-- Auto-orbit (only when not being dragged), smoothed in/out so
 			-- toggling the preference or starting/ending a drag blends
 			-- instead of snapping the orbit on or off.
@@ -395,13 +476,14 @@ function Director:Step(dt)
 			end
 
 			local aspect = entry.viewport.AbsoluteSize.X / math.max(1, entry.viewport.AbsoluteSize.Y)
-			local distance = 19 * math.max(1, 1 / aspect) * entry.zoomDistance
+			local effectiveZoom = entry.zoomDistance * (1 + (entry.buildBlend or 0) * 0.22)
+			local distance = 19 * math.max(1, 1 / aspect) * effectiveZoom
 			local focus = Vector3.new(0, 1.5, 0)
 
 			entry.camera.CFrame = CFrame.lookAt(
 				focus + Vector3.new(
 					math.sin(entry.angle) * distance,
-					distance * 0.48,
+					distance * (entry.tilt or 0.48),
 					math.cos(entry.angle) * distance
 				),
 				focus

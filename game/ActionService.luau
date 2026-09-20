@@ -166,6 +166,32 @@ function ActionService:_code(state, value)
 	return true, definition.label .. " · +" .. definition.reward .. " compute"
 end
 
+-- `key` is expected to already be TextService-filtered by the caller
+-- (ServerController.luau, which has the requesting Player instance
+-- FilterStringForBroadcast needs — Execute's signature deliberately stays
+-- player-agnostic, matching every other branch here). This function only
+-- does length/emptiness validation, not content moderation.
+function ActionService:_callsign(state, value)
+	if value == nil then
+		state.callsign = ""
+		return true, "Call sign cleared."
+	end
+
+	if type(value) ~= "string" then
+		return false, "Enter a valid call sign."
+	end
+
+	local trimmed = string.gsub(value, "^%s+", "")
+	trimmed = string.gsub(trimmed, "%s+$", "")
+
+	if #trimmed > 20 then
+		return false, "Call sign must be 20 characters or fewer."
+	end
+
+	state.callsign = trimmed
+	return true, if trimmed == "" then "Call sign cleared." else "Call sign updated."
+end
+
 function ActionService:_tutorial(state, key)
 	if key == "complete" then
 		state.tutorialComplete = true
@@ -242,6 +268,8 @@ function ActionService:Execute(state, kind, key, amount, now)
 		return true, "Bulletins marked as read."
 	elseif kind == "tutorial" then
 		return self:_tutorial(state, key)
+	elseif kind == "callsign" then
+		return self:_callsign(state, key)
 	end
 
 	return false, "Unknown request."

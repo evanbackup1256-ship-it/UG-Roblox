@@ -22,6 +22,7 @@ local assets = {
 	contracts = "rbxassetid://7733919526",
 	rewards = "rbxassetid://7733946818",
 	shop = "rbxassetid://7734056747",
+	prestige = "rbxassetid://7733765045",
 	settings = "rbxassetid://7734058803",
 	operations = "rbxassetid://7733765045",
 	modules = "rbxassetid://7733765045",
@@ -114,5 +115,7 @@ end
 function Icons.asset(key)
 	return resolve(key)
 end
+
+Icons.resolve = resolve
 
 return Icons

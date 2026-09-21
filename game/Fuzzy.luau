@@ -1,18 +1,13 @@
--- Fuzzy: simple subsequence-with-gaps scorer, case-insensitive. Not full
--- Levenshtein/edit-distance — overkill for the short catalogue names this
--- backs (tier/research/module/shop/contract/achievement names, all a few
--- words). A query matches a haystack if every query character appears in
--- the haystack in order (not necessarily contiguous); the score rewards
--- matches that start earlier and run more contiguously, so "grid" ranks
--- "Fusion grid" above a haystack where the letters are more spread out.
+-- Fuzzy: simple subsequence-with-gaps scorer, case-insensitive. A query
+-- matches a haystack if every query character appears in the haystack in
+-- order (not necessarily contiguous); score rewards earlier and more
+-- contiguous matches.
 local M = {}
 
--- Returns a score (higher is better) or nil if the query's characters
--- don't all appear in order within haystack. Both inputs are matched
--- case-insensitively; callers should pass already-lowercased strings when
--- comparing many haystacks against the same query repeatedly, to avoid
--- re-lowercasing the query on every call.
-function M.score(query: string, haystack: string): number?
+function M.score(query: any, haystack: any): number?
+	if type(query) ~= "string" or type(haystack) ~= "string" then
+		return nil
+	end
 	if query == "" then
 		return 0
 	end
@@ -37,13 +32,7 @@ function M.score(query: string, haystack: string): number?
 			return nil
 		end
 
-		-- Earlier matches score higher (a match starting at haystack
-		-- position 1 is worth more than one starting at position 20).
 		score += math.max(0, 40 - foundAt)
-
-		-- Consecutive characters (foundAt immediately follows the
-		-- previous match) score a contiguity bonus, so a tight run of
-		-- matched letters outranks the same letters scattered apart.
 		if previousMatchIndex and foundAt == previousMatchIndex + 1 then
 			score += 15
 		end
@@ -52,9 +41,6 @@ function M.score(query: string, haystack: string): number?
 		haystackIndex = foundAt + 1
 	end
 
-	-- Bonus for the match consuming a larger fraction of the haystack
-	-- (favors shorter, more precisely-matched names over long ones that
-	-- happen to also contain the query as a sparse subsequence).
 	score += 20 * (queryLength / haystackLength)
 
 	return score

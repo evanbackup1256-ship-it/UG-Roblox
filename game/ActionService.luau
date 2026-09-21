@@ -105,7 +105,7 @@ function ActionService:_recharge(state)
 		return false, "Energy reserve is already full."
 	end
 
-	local cost = math.floor(120 * self.config.level(state) ^ 1.35)
+	local cost = if self.config.rechargeCost then self.config.rechargeCost(state) else math.floor(120 * self.config.level(state) ^ 1.35)
 	if state.compute < cost then
 		return false, "More compute needed."
 	end
@@ -270,6 +270,8 @@ function ActionService:Execute(state, kind, key, amount, now)
 		return self:_tutorial(state, key)
 	elseif kind == "callsign" then
 		return self:_callsign(state, key)
+	elseif kind == "preferences" or kind == "setting" then
+		return true, "Preferences synchronized."
 	end
 
 	return false, "Unknown request."

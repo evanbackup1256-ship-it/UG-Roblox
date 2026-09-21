@@ -863,8 +863,15 @@ end
 function Config.energyCapacity(state)
 	return 100 + Config.moduleEffect(state, "energy")
 end
+function Config.rechargeCost(state)
+	return math.floor(120 * Config.level(state) ^ 1.35)
+end
 function Config.moduleCost(item, level)
 	return math.floor(item.cost * 2.15 ^ level), math.floor(item.dataCost * 1.7 ^ level)
+end
+function Config.moduleDataCost(item, level)
+	local _, dataCost = Config.moduleCost(item, level)
+	return dataCost
 end
 -- Same pre-indexing strategy as modulesByEffect above, applied to Config.Research
 -- (50 entries after the program-chapter loop). Preserves original iteration order

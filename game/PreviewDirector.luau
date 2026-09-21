@@ -1,8 +1,9 @@
 local RunService = game:GetService("RunService")
 local Input = game:GetService("UserInputService")
 
-local Kit = require(script.Parent.DesignKit)
-local Motion = require(script.Parent.MotionService)
+local Elements = require(script.Parent.App.Elements)
+local Springs = require(script.Parent.App.Springs)
+local Acoustics = require(script.Parent.App.Acoustics)
 
 local Director = {}
 Director.__index = Director
@@ -124,7 +125,7 @@ function Director.new(root, preferences)
 end
 
 function Director:Add(parent, seed, tint, crate)
-	local viewport = Kit.create("ViewportFrame", parent, {
+	local viewport = Elements.create("ViewportFrame", parent, {
 		Name = "Scene",
 		BackgroundTransparency = 1,
 		Ambient = Color3.fromRGB(187, 199, 182),
@@ -160,7 +161,7 @@ function Director:Add(parent, seed, tint, crate)
 			entry.lastX = input.Position.X
 			entry.lastY = input.Position.Y
 			self.drag = entry
-			Kit.sound("hover")
+			Acoustics.play("hover", 0.04)
 		end
 	end)
 
@@ -172,10 +173,10 @@ function Director:Build(entry)
 		return -- already built
 	end
 
-	local world = Kit.create("WorldModel", entry.viewport, { Name = "PreviewModel" })
+	local world = Elements.create("WorldModel", entry.viewport, { Name = "PreviewModel" })
 
 	local function part(size, position, color, material)
-		return Kit.create("Part", world, {
+		return Elements.create("Part", world, {
 			Size = size,
 			Position = position,
 			Color = color,
@@ -298,7 +299,7 @@ function Director:Build(entry)
 	-- lighting behavior, illuminates parts rendered through this viewport.
 	-- Torn down automatically as a descendant of `world` in the existing
 	-- unload path below, no separate cleanup needed.
-	local rimAnchor = Kit.create("Part", world, {
+	local rimAnchor = Elements.create("Part", world, {
 		Name = "RimAnchor",
 		Size = Vector3.new(0.2, 0.2, 0.2),
 		Position = Vector3.new(0, 3, -3),
@@ -309,14 +310,14 @@ function Director:Build(entry)
 		CanQuery = false,
 		CastShadow = false,
 	})
-	local rimLight = Kit.create("PointLight", rimAnchor, {
+	local rimLight = Elements.create("PointLight", rimAnchor, {
 		Color = Color3.fromRGB(150, 190, 255),
 		Brightness = 1.4,
 		Range = 16,
 	})
 	entry.rimLight = rimLight
 
-	entry.camera = Kit.create("Camera", entry.viewport, { FieldOfView = 32 })
+	entry.camera = Elements.create("Camera", entry.viewport, { FieldOfView = 32 })
 	entry.viewport.CurrentCamera = entry.camera
 	entry.world = world
 	if self.preferences.motion then
@@ -426,7 +427,7 @@ function Director:Step(dt)
 			-- limit so it only ever runs for the entry that just built.
 			if entry.buildBlend and entry.buildBlend > 0.001 then
 				if self.preferences.motion then
-					entry.buildBlend = Motion.damped(entry.buildBlend, 0, dt, 4.5)
+					entry.buildBlend = Springs.damped(entry.buildBlend, 0, dt, 4.5)
 				else
 					entry.buildBlend = nil
 				end
@@ -440,7 +441,7 @@ function Director:Step(dt)
 			-- Skipped entirely under reduced motion, same as auto-orbit below.
 			if self.preferences.motion and self.drag ~= entry and entry.spin and math.abs(entry.spin) > 0.001 then
 				entry.angle += entry.spin * dt
-				entry.spin = Motion.damped(entry.spin, 0, dt, 4)
+				entry.spin = Springs.damped(entry.spin, 0, dt, 4)
 			else
 				entry.spin = nil
 			end
@@ -457,7 +458,7 @@ function Director:Step(dt)
 
 			if self.drag ~= entry and entry.tilt and math.abs(entry.tilt - targetTilt) > 0.001 then
 				if self.preferences.motion then
-					entry.tilt = Motion.damped(entry.tilt, targetTilt, dt, 4)
+					entry.tilt = Springs.damped(entry.tilt, targetTilt, dt, 4)
 				else
 					entry.tilt = targetTilt
 				end
@@ -470,7 +471,7 @@ function Director:Step(dt)
 			-- toggling the preference or starting/ending a drag blends
 			-- instead of snapping the orbit on or off.
 			local orbitTarget = (self.preferences.motion and self.preferences.autoOrbit and self.drag ~= entry) and 1 or 0
-			entry.orbitBlend = Motion.damped(entry.orbitBlend or 0, orbitTarget, dt, 5)
+			entry.orbitBlend = Springs.damped(entry.orbitBlend or 0, orbitTarget, dt, 5)
 			if entry.orbitBlend > 0.001 then
 				entry.angle += dt * self.preferences.orbitSpeed * 0.5 * entry.orbitBlend
 			end

@@ -1,11 +1,7 @@
 -- SearchIndex: a static, build-once index of everything global search can
--- jump to — the 12 pages plus every catalogue entry (tiers, research,
+-- jump to — the pages plus every catalogue entry (tiers, research,
 -- modules, shop offers, contracts, achievements). Built straight from
--- Config (the same source every page module already renders from) rather
--- than querying each page module's rendered state, so it needs zero
--- changes to any of the 11 page modules and stays correct automatically
--- as Config grows. Pure data/logic, no UI dependency — sanity-checkable
--- from Studio's command bar before any search UI exists.
+-- Config, the same source every page renders from.
 export type Entry = {
 	id: string,
 	label: string,
@@ -26,23 +22,25 @@ local CATALOGUES = {
 	{ field = "Achievements", category = "Achievement", page = "rewards" },
 }
 
--- `definitions` is InterfaceController.luau's existing 12-entry page list
--- ({key, navTitle, headingTitle, headingDescription}) — passed by
--- reference, not duplicated, so this index and the nav rail always agree
--- on page names.
+-- `definitions` is InterfaceController's page list ({key, navTitle,
+-- headingTitle, headingDescription}).
 function M.build(definitions, Config): { Entry }
 	local entries = {}
 
 	for _, definition in ipairs(definitions) do
-		local key, navTitle, headingTitle, headingDescription = definition[1], definition[2], definition[3], definition[4]
-		table.insert(entries, {
-			id = "page:" .. key,
-			label = headingTitle or navTitle,
-			subtitle = headingDescription,
-			category = "Page",
-			page = key,
-			keywords = string.lower((headingTitle or navTitle) .. " " .. navTitle .. " " .. (headingDescription or "")),
-		})
+		local key = definition.key or definition[1]
+		if key then
+			local label = definition.shortTitle or definition.headingTitle or definition[3] or definition[2] or key
+			local subtitle = definition.breadcrumb or definition.headingDescription or definition[4] or ""
+			table.insert(entries, {
+				id = "page:" .. key,
+				label = label,
+				subtitle = subtitle,
+				category = "Page",
+				page = key,
+				keywords = string.lower(label .. " " .. key .. " " .. subtitle),
+			})
+		end
 	end
 
 	for _, catalogue in ipairs(CATALOGUES) do
@@ -56,7 +54,7 @@ function M.build(definitions, Config): { Entry }
 						subtitle = item.subtitle,
 						category = catalogue.category,
 						page = catalogue.page,
-						keywords = string.lower(item.name .. " " .. (item.subtitle or "") .. " " .. item.key),
+						keywords = string.lower(item.name .. " " .. (item.subtitle or "") .. " " .. item.key .. " " .. catalogue.category .. " " .. catalogue.page),
 					})
 				end
 			end

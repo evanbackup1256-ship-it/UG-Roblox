@@ -1,1 +1,1 @@
-return require(script.Parent:WaitForChild("InterfaceController"))
+return require(script.Parent:WaitForChild("App"):WaitForChild("AppController"))

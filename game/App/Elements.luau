@@ -9,9 +9,6 @@ local Elements = {}
 
 function Elements.create(className: string, parent: Instance?, properties: { [string]: any }?): any
 	local instance = Instance.new(className)
-	if instance:IsA("GuiObject") then
-		instance.AnchorPoint = Vector2.new(0.5, 0.5)
-	end
 	if instance:IsA("ImageLabel") or instance:IsA("ImageButton") then
 		instance.ResampleMode = Enum.ResamplerMode.Default
 		instance.ScaleType = Enum.ScaleType.Fit
@@ -27,9 +24,11 @@ function Elements.create(className: string, parent: Instance?, properties: { [st
 			end
 		end
 	end
+	
 	if parent then
 		instance.Parent = parent
 	end
+	
 	return instance
 end
 
@@ -61,32 +60,82 @@ function Elements.stroke(instance: Instance, color: Color3?, thickness: number?,
 	})
 end
 
-function Elements.card(parent: Instance, name: string, height: number?, color: Color3?): Frame
-	local card = Elements.create("Frame", parent, {
+function Elements.card(parent: Instance, name: string, height: number?, bgCol: Color3?): Frame
+	local frame = Elements.create("Frame", parent, {
 		Name = name,
-		Size = UDim2.new(1, 0, 0, height or 120),
-		BackgroundColor3 = color or C.card,
+		BackgroundColor3 = bgCol or C.card,
 		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, height or 80),
+		ZIndex = 10,
 	})
-	Elements.corner(card, Theme.radii.card)
-	Elements.stroke(card, C.hairline, 1, Theme.hairlines.restTransparency)
+
+	Elements.corner(frame, Theme.radii.card)
 	
-	-- Premium Drop Shadow
-	local shadowDef = Theme.shadows.card
-	local shadow = Elements.create("ImageLabel", card, {
-		Name = "DropShadow",
+	-- Ambient subtle noise texture for realism
+	Elements.create("ImageLabel", frame, {
+		Name = "Noise",
+		Image = "rbxassetid://16124706509", -- Premium subtle noise grain
+		ImageTransparency = 0.95,
 		BackgroundTransparency = 1,
-		Image = "rbxassetid://13168285511", -- High quality blurred shadow sprite
-		ImageColor3 = shadowDef.color,
-		ImageTransparency = shadowDef.transparency,
-		ScaleType = Enum.ScaleType.Slice,
-		SliceCenter = Rect.new(64, 64, 64, 64),
-		Size = UDim2.new(1, shadowDef.size * 2, 1, shadowDef.size * 2),
-		Position = UDim2.new(0.5, shadowDef.offset.X, 0.5, shadowDef.offset.Y),
-		ZIndex = -1,
+		Size = UDim2.fromScale(1, 1),
+		ScaleType = Enum.ScaleType.Tile,
+		TileSize = UDim2.fromOffset(256, 256),
+		ZIndex = 11,
 	})
 	
-	return card
+	-- Glassmorphic ambient light gradient
+	Elements.create("UIGradient", frame, {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(1, Color3.new(0.8, 0.8, 0.8))
+		}),
+		Rotation = 45,
+	})
+
+	local shadowCfg = Theme.shadows.card
+	local shadow = Elements.create("ImageLabel", frame, {
+		Name = "DropShadow",
+		Image = "rbxassetid://1316045217", -- High fidelity smooth shadow 9-slice
+		ImageColor3 = shadowCfg.color,
+		ImageTransparency = shadowCfg.transparency,
+		BackgroundTransparency = 1,
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Rect.new(10, 10, 118, 118),
+		Size = UDim2.new(1, shadowCfg.size * 2, 1, shadowCfg.size * 2),
+		Position = UDim2.new(0.5, shadowCfg.offset.X, 0.5, shadowCfg.offset.Y),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		ZIndex = 9,
+	})
+
+	-- Beautiful glowing top edge
+	local topGlow = Elements.create("Frame", frame, {
+		Name = "TopGlow",
+		Size = UDim2.new(1, -12, 0, 1),
+		Position = UDim2.new(0.5, 0, 0, 0),
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.92,
+		BorderSizePixel = 0,
+		ZIndex = 12,
+	})
+	Elements.create("UIGradient", topGlow, {
+		Transparency = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, 1),
+			ColorSequenceKeypoint.new(0.5, 0),
+			ColorSequenceKeypoint.new(1, 1)
+		})
+	})
+
+	local stroke = Elements.stroke(frame, Theme.hairlines.bevelColor, 1, Theme.hairlines.bevelTransparency)
+	Elements.create("UIGradient", stroke, {
+		Rotation = 90,
+		Transparency = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Theme.hairlines.hoverTransparency),
+			ColorSequenceKeypoint.new(1, Theme.hairlines.restTransparency)
+		})
+	})
+
+	return frame
 end
 
 function Elements.interactiveCard(parent: Instance, name: string, height: number?, color: Color3?): Frame

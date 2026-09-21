@@ -55,6 +55,9 @@ local VARIANTS = {
 
 local Feedback = require(script.Parent.Feedback)
 
+local TweenService = game:GetService("TweenService")
+local TWEEN_INFO = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
 function Buttons.button(
 	parent: Instance,
 	name: string,
@@ -67,7 +70,7 @@ function Buttons.button(
 	local btn = Elements.create("TextButton", parent, {
 		Name = name,
 		Size = UDim2.fromOffset(140, 38),
-		AnchorPoint = Vector2.new(0, 0),
+		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = v.bg,
 		BackgroundTransparency = v.bgTrans or 0,
 		BorderSizePixel = 0,
@@ -77,10 +80,11 @@ function Buttons.button(
 		TextColor3 = v.text,
 		AutoButtonColor = false,
 		AutoLocalize = false,
-		ClipsDescendants = true,
+		ClipsDescendants = false,
 		ZIndex = 5,
 	})
 	Elements.corner(btn, Theme.radii.control)
+	local scale = Elements.create("UIScale", btn, { Scale = 1 })
 
 	local stroke = Elements.stroke(btn, v.stroke, 1, Theme.hairlines.restTransparency)
 	
@@ -100,29 +104,29 @@ function Buttons.button(
 	btn.MouseEnter:Connect(function()
 		if btn:GetAttribute("EnabledState") ~= true then return end
 		playSound("hover", 0.03)
-		Springs.target(btn, { BackgroundColor3 = v.bgHover }, "smooth")
-		Springs.target(stroke, { Transparency = Theme.hairlines.hoverTransparency }, "smooth")
+		TweenService:Create(btn, TWEEN_INFO, { BackgroundColor3 = v.bgHover }):Play()
+		TweenService:Create(stroke, TWEEN_INFO, { Transparency = Theme.hairlines.hoverTransparency }):Play()
 	end)
 
 	btn.MouseLeave:Connect(function()
-		Springs.release(btn)
+		TweenService:Create(scale, TWEEN_INFO, { Scale = 1.0 }):Play()
 		if btn:GetAttribute("EnabledState") ~= true then return end
-		Springs.target(btn, { BackgroundColor3 = v.bg }, "smooth")
-		Springs.target(stroke, { Transparency = Theme.hairlines.restTransparency }, "smooth")
+		TweenService:Create(btn, TWEEN_INFO, { BackgroundColor3 = v.bg }):Play()
+		TweenService:Create(stroke, TWEEN_INFO, { Transparency = Theme.hairlines.restTransparency }):Play()
 	end)
 
 	btn.MouseButton1Down:Connect(function()
 		if btn:GetAttribute("EnabledState") ~= true then return end
 		playSound("press", 0.04)
-		Springs.press(btn, 0.96)
-		Springs.target(stroke, { Transparency = Theme.hairlines.activeTransparency }, "smooth")
+		TweenService:Create(scale, TWEEN_INFO, { Scale = 0.96 }):Play()
+		TweenService:Create(stroke, TWEEN_INFO, { Transparency = Theme.hairlines.activeTransparency }):Play()
 	end)
 
 	btn.MouseButton1Up:Connect(function()
 		if btn:GetAttribute("EnabledState") ~= true then return end
 		playSound("release", 0.04)
-		Springs.release(btn)
-		Springs.target(stroke, { Transparency = Theme.hairlines.hoverTransparency }, "smooth")
+		TweenService:Create(scale, TWEEN_INFO, { Scale = 1.0 }):Play()
+		TweenService:Create(stroke, TWEEN_INFO, { Transparency = Theme.hairlines.hoverTransparency }):Play()
 	end)
 
 	if onClick then
@@ -151,17 +155,17 @@ function Buttons.enable(btn: TextButton, isEnabled: boolean, labelText: string?,
 	if isEnabled then
 		btn.Active = true
 		btn.AutoButtonColor = false
-		Springs.target(btn, {
+		TweenService:Create(btn, TWEEN_INFO, {
 			BackgroundColor3 = normalBg,
 			BackgroundTransparency = 0,
-		}, "smooth")
+		}):Play()
 		btn.TextColor3 = textCol
 	else
 		btn.Active = false
-		Springs.target(btn, {
+		TweenService:Create(btn, TWEEN_INFO, {
 			BackgroundColor3 = C.recessed,
 			BackgroundTransparency = 0.2,
-		}, "smooth")
+		}):Play()
 		btn.TextColor3 = C.textMuted
 	end
 end

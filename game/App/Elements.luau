@@ -9,6 +9,13 @@ local Elements = {}
 
 function Elements.create(className: string, parent: Instance?, properties: { [string]: any }?): any
 	local instance = Instance.new(className)
+	if instance:IsA("GuiObject") then
+		instance.AnchorPoint = Vector2.new(0.5, 0.5)
+	end
+	if instance:IsA("ImageLabel") or instance:IsA("ImageButton") then
+		instance.ResampleMode = Enum.ResamplerMode.Default
+		instance.ScaleType = Enum.ScaleType.Fit
+	end
 	if properties then
 		for prop, val in properties do
 			if prop == "Font" and typeof(val) == "Font" then
@@ -16,7 +23,7 @@ function Elements.create(className: string, parent: Instance?, properties: { [st
 			elseif prop == "FontFace" and typeof(val) == "EnumItem" then
 				(instance :: any).Font = val
 			else
-				(instance :: any)[prop] = val
+				pcall(function() (instance :: any)[prop] = val end)
 			end
 		end
 	end
@@ -55,53 +62,36 @@ function Elements.stroke(instance: Instance, color: Color3?, thickness: number?,
 end
 
 function Elements.card(parent: Instance, name: string, height: number?, color: Color3?): Frame
-	local cardFrame = Elements.create("Frame", parent, {
+	local card = Elements.create("Frame", parent, {
 		Name = name,
 		Size = UDim2.new(1, 0, 0, height or 120),
 		BackgroundColor3 = color or C.card,
 		BorderSizePixel = 0,
-		ClipsDescendants = true,
-		ZIndex = 1,
 	})
-	Elements.corner(cardFrame, Theme.radii.card)
-	Elements.stroke(cardFrame, C.hairline, Theme.hairlines.thickness, Theme.hairlines.restTransparency)
-	return cardFrame
+	Elements.corner(card, Theme.radii.card)
+	Elements.stroke(card, C.hairline, 1, Theme.hairlines.restTransparency)
+	
+	-- Premium Drop Shadow
+	local shadowDef = Theme.shadows.card
+	local shadow = Elements.create("ImageLabel", card, {
+		Name = "DropShadow",
+		BackgroundTransparency = 1,
+		Image = "rbxassetid://13168285511", -- High quality blurred shadow sprite
+		ImageColor3 = shadowDef.color,
+		ImageTransparency = shadowDef.transparency,
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Rect.new(64, 64, 64, 64),
+		Size = UDim2.new(1, shadowDef.size * 2, 1, shadowDef.size * 2),
+		Position = UDim2.new(0.5, shadowDef.offset.X, 0.5, shadowDef.offset.Y),
+		ZIndex = -1,
+	})
+	
+	return card
 end
 
 function Elements.interactiveCard(parent: Instance, name: string, height: number?, color: Color3?): Frame
 	local card = Elements.card(parent, name, height, color)
-	card.AnchorPoint = Vector2.new(0.5, 0.5)
 	card.Active = true
-	local normalColor = color or C.card
-	local hoverColor = C.elevated
-	local strokeObj = card:FindFirstChildOfClass("UIStroke")
-
-	local isHovered = false
-	local function onHoverStart()
-		if isHovered then return end
-		isHovered = true
-		card.ZIndex = 8
-		Springs.target(card, { BackgroundColor3 = hoverColor }, "smooth")
-		Springs.hover(card, true, 1.015)
-		if strokeObj then
-			Springs.target(strokeObj, { Transparency = 0.20, Color = C.hairlineGlow }, "smooth")
-		end
-	end
-
-	local function onHoverEnd()
-		if not isHovered then return end
-		isHovered = false
-		card.ZIndex = 1
-		Springs.target(card, { BackgroundColor3 = normalColor }, "smooth")
-		Springs.hover(card, false)
-		if strokeObj then
-			Springs.target(strokeObj, { Transparency = Theme.hairlines.restTransparency, Color = C.hairline }, "smooth")
-		end
-	end
-
-	card.MouseEnter:Connect(onHoverStart)
-	card.MouseLeave:Connect(onHoverEnd)
-
 	return card
 end
 
@@ -327,12 +317,34 @@ function Elements.place(instance: GuiObject, x: number, y: number, width: number
 	local rw = math.max(0, math.round(width))
 	local rh = math.max(0, math.round(height))
 
-	local ap = instance.AnchorPoint
-	instance.Position = UDim2.fromOffset(
-		math.round(rx + rw * ap.X),
-		math.round(ry + rh * ap.Y)
+	local parent = instance.Parent
+	if not parent or not parent:IsA("GuiObject") or parent.AbsoluteSize.X == 0 or parent.AbsoluteSize.Y == 0 then
+		instance.Size = UDim2.fromOffset(rw, rh)
+		instance.Position = UDim2.fromOffset(
+			math.round(rx + rw * instance.AnchorPoint.X),
+			math.round(ry + rh * instance.AnchorPoint.Y)
+		)
+		return
+	end
+
+	local pw = parent.AbsoluteSize.X
+	local ph = parent.AbsoluteSize.Y
+
+	instance.Size = UDim2.fromScale(rw / pw, rh / ph)
+	instance.Position = UDim2.fromScale(
+		(rx + rw * instance.AnchorPoint.X) / pw,
+		(ry + rh * instance.AnchorPoint.Y) / ph
 	)
-	instance.Size = UDim2.fromOffset(rw, rh)
+	
+	-- Keep aspect ratio locked to prevent vertical squish/stretch during container resizes
+	local constraint = instance:FindFirstChildOfClass("UIAspectRatioConstraint")
+	if not constraint and rw > 0 and rh > 0 then
+		constraint = Instance.new("UIAspectRatioConstraint")
+		constraint.AspectRatio = rw / rh
+		constraint.AspectType = Enum.AspectType.FitWithinMaxSize
+		constraint.DominantAxis = Enum.DominantAxis.Width
+		constraint.Parent = instance
+	end
 end
 
 return Elements

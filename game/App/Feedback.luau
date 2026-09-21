@@ -77,42 +77,58 @@ function Feedback.bump(instance: GuiObject, peakScale: number?)
 	end
 end
 
--- Celebratory confetti particle burst
+-- Celebratory high-fidelity confetti cascade
 function Feedback.confetti(parent: Instance, color: Color3?)
-	if not Springs.motionEnabled then return end
 	local burstColor = color or C.accent
 
 	local emitter = Elements.create("Frame", parent, {
-		Name = "ConfettiBurst",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(1, 1),
+		Name = "ConfettiCascade",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, -0.1),
+		Size = UDim2.fromScale(1, 0.1),
 		BackgroundTransparency = 1,
-		ZIndex = 20,
+		ZIndex = 50,
 	})
 
 	local rng = Random.new()
-	for _ = 1, 12 do
+	local numParticles = 40
+
+	for i = 1, numParticles do
+		local width = rng:NextInteger(6, 12)
+		local height = rng:NextInteger(4, 8)
+		local col = if rng:NextNumber() > 0.6 then burstColor else (if rng:NextNumber() > 0.5 then C.accent2 else Color3.fromRGB(255, 255, 255))
+		
 		local particle = Elements.create("Frame", emitter, {
-			Size = UDim2.fromOffset(rng:NextInteger(4, 7), rng:NextInteger(4, 7)),
-			BackgroundColor3 = if rng:NextNumber() > 0.5 then burstColor else C.accent2,
+			Size = UDim2.fromOffset(width, height),
+			BackgroundColor3 = col,
 			BorderSizePixel = 0,
-			Position = UDim2.fromOffset(0, 0),
+			Position = UDim2.fromScale(rng:NextNumber(0.1, 0.9), rng:NextNumber(0, 1)),
+			Rotation = rng:NextNumber(0, 360),
 		})
-		Elements.corner(particle, Theme.radii.pill)
+		
+		if rng:NextNumber() > 0.5 then
+			Elements.corner(particle, Theme.radii.micro)
+		end
 
-		local angle = rng:NextNumber(0, math.pi * 2)
-		local distance = rng:NextNumber(25, 60)
-		local targetOffset = Vector2.new(math.cos(angle) * distance, math.sin(angle) * distance)
+		local dropTime = rng:NextNumber(1.5, 2.5)
+		local endY = rng:NextNumber(1.0, 1.8) -- Drop down past screen
+		local endX = particle.Position.X.Scale + rng:NextNumber(-0.3, 0.3) -- Drift sideways
+		local endRot = particle.Rotation + rng:NextNumber(-360, 360)
 
-		local tween = TweenService:Create(particle, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-			Position = UDim2.fromOffset(targetOffset.X, targetOffset.Y),
-			BackgroundTransparency = 1,
+		local tween = TweenService:Create(particle, TweenInfo.new(dropTime, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {
+			Position = UDim2.fromScale(endX, endY),
+			Rotation = endRot,
+			Size = UDim2.fromOffset(0, 0),
+			BackgroundTransparency = 1
 		})
-		tween:Play()
+		
+		-- Small delay to make it cascade naturally
+		task.delay(rng:NextNumber(0, 0.5), function()
+			if particle.Parent then tween:Play() end
+		end)
 	end
 
-	task.delay(0.6, function()
+	task.delay(3.5, function()
 		emitter:Destroy()
 	end)
 end

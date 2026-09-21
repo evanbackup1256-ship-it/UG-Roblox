@@ -61,6 +61,21 @@ Theme.radii = {
 	pill = 999,
 }
 
+Theme.shadows = {
+	card = {
+		color = Color3.fromRGB(0, 0, 0),
+		transparency = 0.5,
+		size = 14,
+		offset = Vector2.new(0, 4)
+	},
+	modal = {
+		color = Color3.fromRGB(0, 0, 0),
+		transparency = 0.6,
+		size = 24,
+		offset = Vector2.new(0, 8)
+	}
+}
+
 Theme.hairlines = {
 	thickness = 1,
 	restTransparency = 0.70,

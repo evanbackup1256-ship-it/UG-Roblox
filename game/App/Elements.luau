@@ -119,19 +119,19 @@ function Elements.card(parent: Instance, name: string, height: number?, bgCol: C
 		ZIndex = 12,
 	})
 	Elements.create("UIGradient", topGlow, {
-		Transparency = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, 1),
-			ColorSequenceKeypoint.new(0.5, 0),
-			ColorSequenceKeypoint.new(1, 1)
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.5, 0),
+			NumberSequenceKeypoint.new(1, 1)
 		})
 	})
 
 	local stroke = Elements.stroke(frame, Theme.hairlines.bevelColor, 1, Theme.hairlines.bevelTransparency)
 	Elements.create("UIGradient", stroke, {
 		Rotation = 90,
-		Transparency = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Theme.hairlines.hoverTransparency),
-			ColorSequenceKeypoint.new(1, Theme.hairlines.restTransparency)
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, Theme.hairlines.hoverTransparency),
+			NumberSequenceKeypoint.new(1, Theme.hairlines.restTransparency)
 		})
 	})
 

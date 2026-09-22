@@ -7,6 +7,8 @@ private = true
 
 [dependencies]
 Trove = "sleitnick/trove@1.8.0"
+React = "jsdotlua/react@17.2.1"
+ReactRoblox = "jsdotlua/react-roblox@17.2.1"
 
 [server-dependencies]
 ProfileStore = "lm-loleris/profilestore@1.0.3"

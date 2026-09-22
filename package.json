@@ -3,9 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "validate": "tsx tools/validate-content.ts"
+    "validate": "tsx tools/validate-content.ts",
+    "build": "npx roblox-ts build",
+    "watch": "npx roblox-ts watch",
+    "build:all": "npx roblox-ts build && rojo build default.project.json --output game.rbxl"
   },
   "devDependencies": {
+    "@rbxts/compiler-types": "^3.0.0-types.0",
+    "@rbxts/react": "^17.3.7-ts.2",
+    "@rbxts/react-roblox": "^17.3.7-ts.2",
+    "@rbxts/services": "^1.6.0",
+    "@rbxts/types": "^1.0.953",
+    "roblox-ts": "^3.0.0",
     "tsx": "latest",
     "typescript": "latest"
   },

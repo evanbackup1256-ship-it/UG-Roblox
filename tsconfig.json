@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "typeRoots": ["node_modules/@rbxts"],
+    "rootDir": "src",
+    "outDir": "out",
+    "module": "CommonJS",
+    "target": "ESNext",
+    "jsx": "react",
+    "jsxFactory": "React.createElement",
+    "strict": true,
+    "noLib": true,
+    "moduleDetection": "force",
+    "downlevelIteration": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}

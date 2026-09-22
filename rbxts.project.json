@@ -1,0 +1,24 @@
+{
+  "name": "DeckEmpire",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "DeckGame": {
+        "$className": "Folder",
+        "App": {
+          "$path": "out/client"
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "DeckGameClient": {
+          "$path": "out/client/index.client.lua"
+        }
+      }
+    }
+  }
+}

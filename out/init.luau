@@ -30,7 +30,7 @@ local gui = Instance.new("ScreenGui")
 gui.Name = "DeckReactApp"
 gui.ResetOnSpawn = false
 gui.DisplayOrder = 10
-gui.IgnoreGuiInset = true
+gui.IgnoreGuiInset = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = playerGui
 -- Mount React tree

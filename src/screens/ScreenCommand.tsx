@@ -125,18 +125,18 @@ export default function ScreenCommand(): React.Element {
 			)}
 
 			{/* ── HERO CARD ────────────────────────────────────────────── */}
-			<Card height={192} layoutOrder={1}>
+			<Card height={160} layoutOrder={1}>
 				<uilistlayout
 					FillDirection={Enum.FillDirection.Vertical}
-					Padding={new UDim(0, 6)}
+					Padding={new UDim(0, 8)}
 					SortOrder={Enum.SortOrder.LayoutOrder}
-					HorizontalAlignment={Enum.HorizontalAlignment.Center}
+					HorizontalAlignment={Enum.HorizontalAlignment.Left}
 				/>
 				<uipadding
-					PaddingLeft={new UDim(0, 20)}
-					PaddingRight={new UDim(0, 20)}
-					PaddingTop={new UDim(0, 20)}
-					PaddingBottom={new UDim(0, 20)}
+					PaddingLeft={new UDim(0, 24)}
+					PaddingRight={new UDim(0, 24)}
+					PaddingTop={new UDim(0, 18)}
+					PaddingBottom={new UDim(0, 18)}
 				/>
 
 				<textlabel
@@ -146,7 +146,7 @@ export default function ScreenCommand(): React.Element {
 					TextSize={Size.hero}
 					TextColor3={C.textPrimary}
 					BackgroundTransparency={1}
-					Size={new UDim2(1, 0, 0, 32)}
+					Size={new UDim2(1, 0, 0, 28)}
 					TextXAlignment={Enum.TextXAlignment.Left}
 					LayoutOrder={1}
 				/>
@@ -157,7 +157,7 @@ export default function ScreenCommand(): React.Element {
 					TextSize={Size.body}
 					TextColor3={C.textSecondary}
 					BackgroundTransparency={1}
-					Size={new UDim2(1, 0, 0, 20)}
+					Size={new UDim2(1, 0, 0, 18)}
 					TextXAlignment={Enum.TextXAlignment.Left}
 					TextWrapped={true}
 					LayoutOrder={2}
@@ -178,14 +178,15 @@ export default function ScreenCommand(): React.Element {
 				<frame
 					key="ButtonWrap"
 					BackgroundTransparency={1}
-					Size={new UDim2(1, 0, 0, 48)}
+					Size={new UDim2(0, 240, 0, 44)}
 					LayoutOrder={4}
 				>
 					<Button
 						label="⚡  Generate Compute"
 						onClick={handleJob}
 						variant="primary"
-						height={48}
+						width={240}
+						height={44}
 					/>
 				</frame>
 			</Card>

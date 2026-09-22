@@ -141,6 +141,8 @@ export default function SearchPalette({ visible, onClose, onNavigate }: SearchPa
 		setQuery("");
 	};
 
+	if (!visible) return <frame Visible={false} Size={new UDim2(0, 0, 0, 0)} BackgroundTransparency={1} />;
+
 	return (
 		<frame
 			key="SearchPaletteRoot"
@@ -149,7 +151,7 @@ export default function SearchPalette({ visible, onClose, onNavigate }: SearchPa
 			Size={new UDim2(1, 0, 1, 0)}
 			Position={new UDim2(0, 0, 0, 0)}
 			ZIndex={50}
-			Visible={true}
+			Visible={visible}
 		>
 			{/* Dark backdrop — click to close */}
 			<textbutton

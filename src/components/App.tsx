@@ -129,8 +129,8 @@ export function App() {
 				BackgroundTransparency={1}
 				BorderSizePixel={0}
 				// Positioned to the right of the nav dock on desktop
-				Size={new UDim2(1, -72, 1, -56)}
-				Position={new UDim2(0, 72, 0, 56)}
+				Size={new UDim2(1, -72, 1, -52)}
+				Position={new UDim2(0, 72, 0, 52)}
 				ClipsDescendants={true}
 			>
 				<ScreenComponent />

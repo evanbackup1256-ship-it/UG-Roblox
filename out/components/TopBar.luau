@@ -71,7 +71,7 @@ local function TopBar(_param)
 		key = "TopBar",
 		BackgroundColor3 = C.panel,
 		BorderSizePixel = 0,
-		Size = UDim2.new(1, 0, 0, 56),
+		Size = UDim2.new(1, 0, 0, 52),
 		Position = UDim2.new(0, 0, 0, 0),
 		ZIndex = 20,
 	}, React.createElement("frame", {
@@ -85,7 +85,7 @@ local function TopBar(_param)
 		key = "LeftSection",
 		BackgroundTransparency = 1,
 		Size = UDim2.new(0, 240, 1, 0),
-		Position = UDim2.new(0, 8, 0, 0),
+		Position = UDim2.new(0, 14, 0, 0),
 		ZIndex = 21,
 	}, React.createElement("frame", {
 		key = "OperatorPill",
@@ -113,7 +113,7 @@ local function TopBar(_param)
 		Padding = UDim.new(0, 8),
 	}), React.createElement("imagelabel", {
 		key = "Avatar",
-		Image = "rbxassetid://7733765045",
+		Image = "rbxassetid://7733960981",
 		ImageColor3 = C.accent,
 		BackgroundColor3 = C.elevated,
 		BorderSizePixel = 0,
@@ -159,7 +159,7 @@ local function TopBar(_param)
 		Size = UDim2.new(0, 0, 1, 0),
 		AutomaticSize = Enum.AutomaticSize.X,
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -8, 0, 0),
+		Position = UDim2.new(1, -14, 0, 0),
 		ZIndex = 21,
 	}, React.createElement("uilistlayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
@@ -184,7 +184,7 @@ local function TopBar(_param)
 		Thickness = 1,
 		Transparency = 0.45,
 	}), React.createElement("imagelabel", {
-		Image = "rbxassetid://7733765045",
+		Image = "rbxassetid://7734052925",
 		ImageColor3 = C.textSecondary,
 		BackgroundTransparency = 1,
 		Size = UDim2.new(0, 18, 0, 18),

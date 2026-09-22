@@ -84,7 +84,7 @@ export default function TopBar({
 			key="TopBar"
 			BackgroundColor3={C.panel}
 			BorderSizePixel={0}
-			Size={new UDim2(1, 0, 0, 56)}
+			Size={new UDim2(1, 0, 0, 52)}
 			Position={new UDim2(0, 0, 0, 0)}
 			ZIndex={20}
 		>
@@ -103,7 +103,7 @@ export default function TopBar({
 				key="LeftSection"
 				BackgroundTransparency={1}
 				Size={new UDim2(0, 240, 1, 0)}
-				Position={new UDim2(0, 8, 0, 0)}
+				Position={new UDim2(0, 14, 0, 0)}
 				ZIndex={21}
 			>
 				<frame
@@ -134,7 +134,7 @@ export default function TopBar({
 					{/* Avatar */}
 					<imagelabel
 						key="Avatar"
-						Image="rbxassetid://7733765045"
+						Image="rbxassetid://7733960981"
 						ImageColor3={C.accent}
 						BackgroundColor3={C.elevated}
 						BorderSizePixel={0}
@@ -189,7 +189,7 @@ export default function TopBar({
 				Size={new UDim2(0, 0, 1, 0)}
 				AutomaticSize={Enum.AutomaticSize.X}
 				AnchorPoint={new Vector2(1, 0)}
-				Position={new UDim2(1, -8, 0, 0)}
+				Position={new UDim2(1, -14, 0, 0)}
 				ZIndex={21}
 			>
 				<uilistlayout
@@ -215,7 +215,7 @@ export default function TopBar({
 					<uicorner CornerRadius={new UDim(0, R.control)} />
 					<uistroke Color={C.hairline} Thickness={1} Transparency={0.45} />
 					<imagelabel
-						Image="rbxassetid://7733765045"
+						Image="rbxassetid://7734052925"
 						ImageColor3={C.textSecondary}
 						BackgroundTransparency={1}
 						Size={new UDim2(0, 18, 0, 18)}

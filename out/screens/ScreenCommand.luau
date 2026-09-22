@@ -136,15 +136,15 @@ local function ScreenCommand()
 	})))
 	local _exp_3 = React.createElement("uilistlayout", {
 		FillDirection = Enum.FillDirection.Vertical,
-		Padding = UDim.new(0, 6),
+		Padding = UDim.new(0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
 	})
 	local _exp_4 = React.createElement("uipadding", {
-		PaddingLeft = UDim.new(0, 20),
-		PaddingRight = UDim.new(0, 20),
-		PaddingTop = UDim.new(0, 20),
-		PaddingBottom = UDim.new(0, 20),
+		PaddingLeft = UDim.new(0, 24),
+		PaddingRight = UDim.new(0, 24),
+		PaddingTop = UDim.new(0, 18),
+		PaddingBottom = UDim.new(0, 18),
 	})
 	local _exp_5 = React.createElement("textlabel", {
 		key = "HeroTitle",
@@ -153,7 +153,7 @@ local function ScreenCommand()
 		TextSize = Size.hero,
 		TextColor3 = C.textPrimary,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 32),
+		Size = UDim2.new(1, 0, 0, 28),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		LayoutOrder = 1,
 	})
@@ -164,7 +164,7 @@ local function ScreenCommand()
 		TextSize = Size.body,
 		TextColor3 = C.textSecondary,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 20),
+		Size = UDim2.new(1, 0, 0, 18),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextWrapped = true,
 		LayoutOrder = 2,
@@ -193,7 +193,7 @@ local function ScreenCommand()
 		ScrollBarImageColor3 = C.hairline,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 	}, _exp, _exp_1, _exp_2, React.createElement(Card, {
-		height = 192,
+		height = 160,
 		layoutOrder = 1,
 	}, _exp_3, _exp_4, _exp_5, _exp_6, React.createElement("frame", {
 		key = "PopLayer",
@@ -205,13 +205,14 @@ local function ScreenCommand()
 	}, _newValue), React.createElement("frame", {
 		key = "ButtonWrap",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 48),
+		Size = UDim2.new(0, 240, 0, 44),
 		LayoutOrder = 4,
 	}, React.createElement(Button, {
 		label = "⚡  Generate Compute",
 		onClick = handleJob,
 		variant = "primary",
-		height = 48,
+		width = 240,
+		height = 44,
 	}))), React.createElement("frame", {
 		key = "StatGrid",
 		BackgroundTransparency = 1,

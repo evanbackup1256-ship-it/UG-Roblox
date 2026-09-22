@@ -136,8 +136,8 @@ local function App()
 		key = "ContentArea",
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		Size = UDim2.new(1, -72, 1, -56),
-		Position = UDim2.new(0, 72, 0, 56),
+		Size = UDim2.new(1, -72, 1, -52),
+		Position = UDim2.new(0, 72, 0, 52),
 		ClipsDescendants = true,
 	}, React.createElement(ScreenComponent)), React.createElement(Toast), React.createElement(SearchPalette, {
 		visible = searchOpen,

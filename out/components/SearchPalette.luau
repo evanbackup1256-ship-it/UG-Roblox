@@ -187,6 +187,13 @@ local function SearchPalette(_param)
 		onClose()
 		setQuery("")
 	end
+	if not visible then
+		return React.createElement("frame", {
+			Visible = false,
+			Size = UDim2.new(0, 0, 0, 0),
+			BackgroundTransparency = 1,
+		})
+	end
 	local _exp = React.createElement("textbutton", {
 		ref = backdropRef,
 		key = "Backdrop",
@@ -440,7 +447,7 @@ local function SearchPalette(_param)
 		Size = UDim2.new(1, 0, 1, 0),
 		Position = UDim2.new(0, 0, 0, 0),
 		ZIndex = 50,
-		Visible = true,
+		Visible = visible,
 	}, _exp, React.createElement("frame", {
 		ref = paletteRef,
 		key = "Palette",

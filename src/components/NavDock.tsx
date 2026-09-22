@@ -1,4 +1,4 @@
-// components/NavDock.tsx — Vertical sidebar (desktop) / bottom tab bar (mobile)
+// components/NavDock.tsx — Precision obsidian vertical rail (desktop) / bottom tab bar (mobile)
 
 import React from "@rbxts/react";
 import { C, R, Font, Size } from "../theme";
@@ -15,23 +15,22 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-	{ id: "overview",       label: "Overview",    icon: "rbxassetid://7733765045" },
-	{ id: "operations",     label: "Ops",         icon: "rbxassetid://7733765045" },
-	{ id: "infrastructure", label: "Infra",       icon: "rbxassetid://7733765045" },
-	{ id: "research",       label: "Research",    icon: "rbxassetid://7733765045" },
-	{ id: "modules",        label: "Modules",     icon: "rbxassetid://7733765045" },
-	{ id: "contracts",      label: "Contracts",   icon: "rbxassetid://7733765045" },
-	{ id: "rewards",        label: "Rewards",     icon: "rbxassetid://7733765045" },
-	{ id: "shop",           label: "Shop",        icon: "rbxassetid://7733765045" },
-	{ id: "prestige",       label: "Prestige",    icon: "rbxassetid://7733765045" },
-	{ id: "events",         label: "Events",      icon: "rbxassetid://7733765045" },
-	{ id: "leaderboard",    label: "Leaders",     icon: "rbxassetid://7733765045" },
-	{ id: "settings",       label: "Settings",    icon: "rbxassetid://7733765045" },
+	{ id: "overview",       label: "Command",   icon: "rbxassetid://7733960981" },
+	{ id: "operations",     label: "Ops",       icon: "rbxassetid://7734051202" },
+	{ id: "infrastructure", label: "Hardware",  icon: "rbxassetid://7734053426" },
+	{ id: "research",       label: "Research",  icon: "rbxassetid://7733674922" },
+	{ id: "modules",        label: "Modules",   icon: "rbxassetid://7733765045" },
+	{ id: "contracts",      label: "Contracts", icon: "rbxassetid://7733919526" },
+	{ id: "rewards",        label: "Rewards",   icon: "rbxassetid://7733946818" },
+	{ id: "shop",           label: "Depot",     icon: "rbxassetid://7734056747" },
+	{ id: "prestige",       label: "Prestige",  icon: "rbxassetid://7734056556" },
+	{ id: "events",         label: "Terminal",  icon: "rbxassetid://7733673987" },
+	{ id: "leaderboard",    label: "Rankings",  icon: "rbxassetid://7733946818" },
+	{ id: "settings",       label: "Settings",  icon: "rbxassetid://7734058803" },
 ];
 
-const TWEEN_FAST = new TweenInfo(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out);
+const TWEEN_INFO = new TweenInfo(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out);
 
-// Individual nav button with hover/active states
 function NavButton({
 	item,
 	isActive,
@@ -43,102 +42,56 @@ function NavButton({
 	isDesktop: boolean;
 	onNavigate: (screen: string) => void;
 }) {
-	const pillRef = React.createRef<Frame>();
-	const btnRef = React.createRef<TextButton>();
+	const [hovered, setHovered] = React.useState(false);
 
-	const tween = (obj: Instance, props: object) => {
-		game.GetService("TweenService").Create(obj as Instance, TWEEN_FAST, props).Play();
-	};
+	const bgColor = isActive
+		? Color3.fromRGB(24, 34, 52)
+		: (hovered ? Color3.fromRGB(24, 28, 38) : Color3.fromRGB(16, 18, 24));
 
-	// Animate pill in when active
-	React.useEffect(() => {
-		const pill = pillRef.current;
-		if (!pill) return;
-		tween(pill, {
-			BackgroundTransparency: isActive ? 0 : 1,
-			Size: isActive
-				? (isDesktop
-					? new UDim2(0, 46, 0, 32)
-					: new UDim2(0, 52, 0, 28))
-				: (isDesktop
-					? new UDim2(0, 0, 0, 32)
-					: new UDim2(0, 0, 0, 28)),
-		});
-	}, [isActive]);
+	const strokeColor = isActive ? C.accent : C.hairline;
+	const strokeTrans = isActive ? 0.35 : 0.85;
+	const iconColor = isActive ? C.accent : (hovered ? C.textPrimary : C.textMuted);
+	const textColor = isActive ? C.textPrimary : (hovered ? C.textSecondary : C.textMuted);
 
 	return (
 		<textbutton
-			ref={btnRef}
 			key={item.id}
 			Text=""
 			AutoButtonColor={false}
-			BackgroundTransparency={1}
+			BackgroundColor3={bgColor}
+			BackgroundTransparency={isActive || hovered ? 0 : 1}
 			BorderSizePixel={0}
-			Size={
-				isDesktop
-					? new UDim2(1, 0, 0, 56)
-					: new UDim2(0, 58, 1, 0)
-			}
-			ZIndex={11}
+			Size={isDesktop ? new UDim2(0, 58, 0, 48) : new UDim2(0, 56, 1, -12)}
+			ZIndex={12}
 			Event={{
 				Activated: () => onNavigate(item.id),
-				MouseEnter: () => {
-					if (isActive) return;
-					const btn = btnRef.current;
-					if (btn) tween(btn, { BackgroundTransparency: 0.95 });
-				},
-				MouseLeave: () => {
-					if (isActive) return;
-					const btn = btnRef.current;
-					if (btn) tween(btn, { BackgroundTransparency: 1 });
-				},
+				MouseEnter: () => setHovered(true),
+				MouseLeave: () => setHovered(false),
 			}}
 		>
-			{/* Active azure pill glow — centered behind icon+label */}
-			<frame
-				ref={pillRef}
-				key="ActivePill"
-				BackgroundColor3={Color3.fromRGB(59, 130, 246)}
-				BackgroundTransparency={isActive ? 0 : 1}
-				BorderSizePixel={0}
-				AnchorPoint={new Vector2(0.5, 0.5)}
-				Position={new UDim2(0.5, 0, 0.5, 0)}
-				Size={
-					isDesktop
-						? (isActive ? new UDim2(0, 46, 0, 32) : new UDim2(0, 0, 0, 32))
-						: (isActive ? new UDim2(0, 52, 0, 28) : new UDim2(0, 0, 0, 28))
-				}
-				ZIndex={10}
-			>
-				<uicorner CornerRadius={new UDim(0, R.pill)} />
-				<uistroke
-					Color={Color3.fromRGB(96, 165, 250)}
-					Thickness={1}
-					Transparency={isActive ? 0.45 : 1}
-				/>
-				{/* Glow halo */}
-				<frame
-					key="Glow"
-					BackgroundColor3={Color3.fromRGB(59, 130, 246)}
-					BackgroundTransparency={0.65}
-					BorderSizePixel={0}
-					AnchorPoint={new Vector2(0.5, 0.5)}
-					Position={new UDim2(0.5, 0, 0.5, 0)}
-					Size={new UDim2(1, 12, 1, 12)}
-					ZIndex={9}
-				>
-					<uicorner CornerRadius={new UDim(0, R.pill)} />
-				</frame>
-			</frame>
+			<uicorner CornerRadius={new UDim(0, R.control)} />
+			<uistroke Color={strokeColor} Thickness={1} Transparency={strokeTrans} />
 
-			{/* Content: icon + label stacked */}
+			{/* Active indicator bar on the left edge */}
+			{isDesktop && isActive && (
+				<frame
+					key="ActiveBar"
+					BackgroundColor3={C.accent}
+					BorderSizePixel={0}
+					Size={new UDim2(0, 3, 0, 24)}
+					Position={new UDim2(0, -6, 0.5, 0)}
+					AnchorPoint={new Vector2(0, 0.5)}
+					ZIndex={14}
+				>
+					<uicorner CornerRadius={new UDim(0, 2)} />
+				</frame>
+			)}
+
 			<frame
 				key="Content"
 				BackgroundTransparency={1}
-				AnchorPoint={new Vector2(0.5, 0.5)}
-				Position={new UDim2(0.5, 0, 0.5, 0)}
-				Size={new UDim2(0, 40, 0, 40)}
-				ZIndex={12}
+				Size={new UDim2(1, 0, 1, 0)}
+				ZIndex={13}
 			>
 				<uilistlayout
 					FillDirection={Enum.FillDirection.Vertical}
@@ -149,21 +102,21 @@ function NavButton({
 				<imagelabel
 					key="Icon"
 					Image={item.icon}
-					ImageColor3={isActive ? Color3.fromRGB(255, 255, 255) : C.textMuted}
+					ImageColor3={iconColor}
 					BackgroundTransparency={1}
-					Size={new UDim2(0, 22, 0, 22)}
+					Size={new UDim2(0, 20, 0, 20)}
 					ScaleType={Enum.ScaleType.Fit}
 				/>
 				<textlabel
 					key="Label"
 					Text={item.label}
-					Font={Font.mono}
-					TextSize={9}
-					TextColor3={isActive ? C.textPrimary : C.textMuted}
+					Font={isActive ? Font.bold : Font.body}
+					TextSize={10}
+					TextColor3={textColor}
 					BackgroundTransparency={1}
-					Size={new UDim2(0, 52, 0, 11)}
+					Size={new UDim2(1, 0, 0, 12)}
 					TextXAlignment={Enum.TextXAlignment.Center}
-					TextScaled={false}
+					TextYAlignment={Enum.TextYAlignment.Center}
 				/>
 			</frame>
 		</textbutton>
@@ -171,7 +124,6 @@ function NavButton({
 }
 
 export default function NavDock({ activeScreen, onNavigate }: NavDockProps): React.Element {
-	// Simple heuristic: if viewport width >= 640 → desktop sidebar, else bottom bar
 	const vp = game.GetService("Workspace").CurrentCamera?.ViewportSize ?? new Vector2(800, 600);
 	const isDesktop = vp.X >= 640;
 
@@ -180,33 +132,17 @@ export default function NavDock({ activeScreen, onNavigate }: NavDockProps): Rea
 			key="NavDock"
 			BackgroundColor3={C.panel}
 			BorderSizePixel={0}
-			Size={
-				isDesktop
-					? new UDim2(0, 72, 1, -56)
-					: new UDim2(1, 0, 0, 64)
-			}
-			Position={
-				isDesktop
-					? new UDim2(0, 0, 0, 56)
-					: new UDim2(0, 0, 1, -64)
-			}
+			Size={isDesktop ? new UDim2(0, 72, 1, -52) : new UDim2(1, 0, 0, 58)}
+			Position={isDesktop ? new UDim2(0, 0, 0, 52) : new UDim2(0, 0, 1, -58)}
 			ZIndex={15}
 		>
-			{/* Right hairline (desktop) / top hairline (mobile) */}
+			{/* Divider Hairline */}
 			<frame
 				key="Hairline"
 				BackgroundColor3={C.hairline}
 				BorderSizePixel={0}
-				Size={
-					isDesktop
-						? new UDim2(0, 1, 1, 0)
-						: new UDim2(1, 0, 0, 1)
-				}
-				Position={
-					isDesktop
-						? new UDim2(1, -1, 0, 0)
-						: new UDim2(0, 0, 0, 0)
-				}
+				Size={isDesktop ? new UDim2(0, 1, 1, 0) : new UDim2(1, 0, 0, 1)}
+				Position={isDesktop ? new UDim2(1, -1, 0, 0) : new UDim2(0, 0, 0, 0)}
 				ZIndex={16}
 			/>
 
@@ -216,32 +152,22 @@ export default function NavDock({ activeScreen, onNavigate }: NavDockProps): Rea
 				BackgroundTransparency={1}
 				BorderSizePixel={0}
 				ScrollBarThickness={0}
-				CanvasSize={
-					isDesktop
-						? new UDim2(0, 0, 0, NAV_ITEMS.size() * 56)
-						: new UDim2(0, NAV_ITEMS.size() * 58, 0, 0)
-				}
+				CanvasSize={isDesktop ? new UDim2(0, 0, 0, NAV_ITEMS.size() * 52 + 16) : new UDim2(0, NAV_ITEMS.size() * 60, 0, 0)}
 				Size={new UDim2(1, 0, 1, 0)}
-				ScrollingDirection={
-					isDesktop
-						? Enum.ScrollingDirection.Y
-						: Enum.ScrollingDirection.X
-				}
+				ScrollingDirection={isDesktop ? Enum.ScrollingDirection.Y : Enum.ScrollingDirection.X}
 				ZIndex={16}
 			>
 				<uilistlayout
-					FillDirection={
-						isDesktop
-							? Enum.FillDirection.Vertical
-							: Enum.FillDirection.Horizontal
-					}
+					FillDirection={isDesktop ? Enum.FillDirection.Vertical : Enum.FillDirection.Horizontal}
 					HorizontalAlignment={Enum.HorizontalAlignment.Center}
-					VerticalAlignment={Enum.VerticalAlignment.Top}
-					Padding={new UDim(0, 0)}
+					VerticalAlignment={isDesktop ? Enum.VerticalAlignment.Top : Enum.VerticalAlignment.Center}
+					Padding={new UDim(0, 4)}
 				/>
 				<uipadding
-					PaddingTop={isDesktop ? new UDim(0, 8) : new UDim(0, 0)}
-					PaddingBottom={isDesktop ? new UDim(0, 8) : new UDim(0, 0)}
+					PaddingTop={new UDim(0, 8)}
+					PaddingBottom={new UDim(0, 8)}
+					PaddingLeft={new UDim(0, 4)}
+					PaddingRight={new UDim(0, 4)}
 				/>
 
 				{NAV_ITEMS.map((item) => (
@@ -257,4 +183,3 @@ export default function NavDock({ activeScreen, onNavigate }: NavDockProps): Rea
 		</frame>
 	);
 }
-

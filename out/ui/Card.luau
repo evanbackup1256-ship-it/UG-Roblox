@@ -58,7 +58,13 @@ local function Card(_param)
 		Position = UDim2.new(0.5, 0, 0.5, 6),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		ZIndex = zIndex - 1,
-	}), children)
+	}), React.createElement("frame", {
+		key = "InnerContent",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 1, 0),
+		ZIndex = zIndex + 2,
+	}, children))
 end
 return {
 	Card = Card,

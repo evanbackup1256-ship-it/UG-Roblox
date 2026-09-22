@@ -77,7 +77,16 @@ export function Card({ height = 120, bgColor = C.card, children, layoutOrder, zI
 				ZIndex={zIndex - 1}
 			/>
 
-			{children}
+			{/* Dedicated content frame so children's layouts don't capture decorations */}
+			<frame
+				key="InnerContent"
+				BackgroundTransparency={1}
+				BorderSizePixel={0}
+				Size={new UDim2(1, 0, 1, 0)}
+				ZIndex={zIndex + 2}
+			>
+				{children}
+			</frame>
 		</frame>
 	);
 }
